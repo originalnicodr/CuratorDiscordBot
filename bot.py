@@ -46,8 +46,8 @@ async def curateaction(ctx,message):
     await channel.send(f'Shot by {message.author}\n "{message.content}"\n{message.attachments[0].url}')
     
 
-async def candidatescheck(m,c):#devuelve si el mensaje (identidificado por la url) se encuentra en el iterador del candidato
-    async for mc in c:
+def candidatescheck(m,c):#devuelve si el mensaje (identidificado por la url) se encuentra en el iterador del candidato
+    for mc in c:
         print(m.id==mc.id)
         if m.id==mc.id:
             return True
@@ -124,36 +124,53 @@ async def startcurating(ctx):
     #se puede cambiar la cantidad de dias en las que se fija para atras
     #global candidates
     channel = discord.utils.get(ctx.guild.channels, name=inputchannel) #ver si hay mejor forma de hacerlo
-    candidates= channel.history(after=(datetime.datetime.now() - timedelta(days = 7)),oldest_first=True).filter(lambda m: m.attachments and (not curate(m)))#candidatos "viejos"
+
+    candidates= channel.history(after=(datetime.datetime.now() - timedelta(days = 7)),oldest_first=True)#.filter(lambda m: m.attachments and (not curate(m)))#candidatos "viejos"
+    listcandidates= await candidates.flatten()
+    listcandidates= filter(lambda m: m.attachments and (not curate(m)), listcandidates)
     
     #async for m in candidates:#debug
     #    print(f'checheko de debugging: {curate(m)}')
 
-    candidatesupdate= channel.history(after=(datetime.datetime.now() - timedelta(days = 7)),oldest_first=True).filter(lambda m : curate(m))
+
 
     while True:
+
+        candidatesupdate= channel.history(after=(datetime.datetime.now() - timedelta(days = 7)),oldest_first=True)#.filter(lambda m : curate(m))
+        listcandidatesupdate= await candidatesupdate.flatten()
+        listcandidatesupdate= filter(curate, listcandidatesupdate)
 
         #candidatesupdate= channel.history(after=(datetime.datetime.now() - timedelta(days = 7)),oldest_first=True).filter(lambda m : curate(m))
         #me avisa cuales son los candidatos que pueden publicarse
         
-        async for m in candidatesupdate:#debug
-            print(f'Reviso candidatesupdate: {m.id}')
+        #async for m in candidatesupdate:#debug
+        #    print(f'Reviso candidatesupdate: {m.id}')
 
-        async for m in candidates:#debug
-            print(f'Reviso candidates: {m.id}')
+        #async for m in candidates:#debug
+        #    print(f'Reviso candidates: {m.id}')
+
+        #print('Imprimiendo candidates')
+        #for e in listcandidates:
+        #    print(e.id)
+        #print('Imprimiendo candidatesupdate')
+        #for e in listcandidatesupdate:
+        #    print(e.id)
 
 
-
-        async for message in candidates.filter(lambda m: candidatescheck(m,candidatesupdate)):#se fija si de su lista de candidatos que no publico si alguno se puede publicar ahora
-            #if message.author != client.user:
-            await curateaction(ctx,message)
-            print(f'Nice shot bro')
+        for message in listcandidates:#se fija si de su lista de candidatos que no publico si alguno se puede publicar ahora
+            print('checkeando')
+            if candidatescheck(message,listcandidatesupdate):
+                await curateaction(ctx,message)
+                print(f'Nice shot bro')
         
-        await asyncio.gather(
-        candidates= channel.history(after=(datetime.datetime.now() - timedelta(days = 7)),oldest_first=True).filter(lambda m: m.attachments and (not curate(m))),#candidatos "viejos"
-        print('Esperando que reaccionen capturas...'),
-        await asyncio.sleep(curatorintervals),
-        candidatesupdate= channel.history(after=(datetime.datetime.now() - timedelta(days = 7)),oldest_first=True).filter(lambda m : curate(m)))
+        
+        candidates= channel.history(after=(datetime.datetime.now() - timedelta(days = 7)),oldest_first=True)#.filter(lambda m: m.attachments and (not curate(m)))#candidatos "viejos"
+        listcandidates= await candidates.flatten()
+        listcandidates= filter(lambda m: m.attachments and (not curate(m)), listcandidates)
+
+        print('Esperando que reaccionen capturas...')
+        await asyncio.sleep(curatorintervals)
+        
         
 
 
