@@ -12,7 +12,7 @@ from datetime import timedelta
 
 import asyncio
 
-from aiostream import stream
+from aiostream import stream, pipe
 import time
 
 
@@ -22,12 +22,14 @@ TOKEN = os.getenv('DISCORD_TOKEN')
 # 2
 bot = commands.Bot(command_prefix='!')
 
+#---Constants
 reactiontrigger = 1
 inputchannel= 'general'
 outputchannel= 'curator'
-curatorintervals= 5
+curatorintervals= 5 #time bwtween reaction checks
+daystocheck=7#the maximun age of the messages to check
 
-candidates=[]
+
 
 def curate(message): #takes the max number of reactions and compares it with the ractiontrigger value
     if message.attachments:#que tiene una imagen
@@ -46,9 +48,23 @@ async def curateaction(ctx,message):
     await channel.send(f'Shot by {message.author}\n "{message.content}"\n{message.attachments[0].url}')
     
 
+async def curateaction2(ctx,message):
+    channel = discord.utils.get(ctx.guild.channels, name=outputchannel)
+    #shot=map(lambda m: m.url,message.attachments)
+
+    embed=discord.Embed(title=message.content,description=f"[Message link]({message.jump_url})")
+    embed.set_image(url=message.attachments[0].url)
+    embed.set_author(name= f'Shot by {message.author}', icon_url=message.author.avatar_url)
+    #embed.set_author(name= f'Shot by {message.author}')
+    #embed.set_thumbnail(url=message.author.avatar_url)
+    embed.set_footer(text=f"{message.created_at}")
+
+    await channel.send(embed=embed)
+
+
 def candidatescheck(m,c):#devuelve si el mensaje (identidificado por la url) se encuentra en el iterador del candidato
     for mc in c:
-        print(m.id==mc.id)
+        print(f'{m.id}=={mc.id}: {m.id==mc.id}')
         if m.id==mc.id:
             return True
     return False
@@ -58,6 +74,8 @@ def candidatescheck(m,c):#devuelve si el mensaje (identidificado por la url) se 
 @bot.event
 async def on_ready():
     print(f'{bot.user.name} has connected to Discord!')
+
+
 
 @bot.command(name='setinputchannel', help='Define from what channel will the bot curate.')
 async def setinputchannel(ctx, channelsName):
@@ -79,117 +97,62 @@ async def setcuratorintervals(ctx, s):
     global curatorintervals
     curatorintervals= s
 
-"""
-@bot.command(name='startcurating', help='Start curating the shots from the past week in the curator\'s output channel')
-async def startcurating(ctx):
-    #se puede cambiar la cantidad de dias en las que se fija para atras
-    global candidates
-    channel = discord.utils.get(ctx.guild.channels, name=inputchannel) #ver si hay mejor forma de hacerlo
-    candidates= channel.history(after=(datetime.datetime.now() - timedelta(days = 7)),oldest_first=True)#.filter(lambda m: m.attachments and (not curate(m)))#candidatos "viejos"
+@bot.command(name='setdaystocheck', help='Define the maximun age of the messages to check')
+async def setdaystocheck(ctx, n):
+    global daystocheck
+    daystocheck= n
 
-    lstcandidates = await stream.list(candidates)
-    lstcandidates= filter(lambda m: m.attachments and (not curate(m)),lstcandidates)
 
-    #async for m in candidates:#debug
-    #    print(m.attachments[0].url)
-        
 
-    while True:
-        
-        candidatesupdate= channel.history(after=(datetime.datetime.now() - timedelta(days = 7)),oldest_first=True)#.filter(lambda m : curate(m))
+async def getlistcandidates(ctx):
+    channel = discord.utils.get(ctx.guild.channels, name=inputchannel)
 
-        lstcandidatesupdate= await stream.list(candidatesupdate)
-        lstcandidatesupdate=filter(curate, lstcandidatesupdate)
-        
-
-        topost=  list(set(lstcandidates) & set(lstcandidatesupdate))  #me va a dar vacio probablemente
-
-        print(f'topost={topost}')
-        print(f'lstcandidatesupdate={lstcandidatesupdate}')
-        print(f'lstcandidates={lstcandidates}')
-
-        async for message in candidatesupdate:
-            #if message.author != client.user:
-            if message in topost:
-                await curateaction(ctx,message)
-                print(f'Nice shot bro')
-        
-        lstcandidates= filter(lambda m: m.attachments and (not curate(m)),await stream.list(channel.history(after=(datetime.datetime.now() - timedelta(days = 7)),oldest_first=True)))#.filter(lambda m : not curate(m)))#candidatos "viejos"
-        print('Esperando que reaccionen capturas...')
-        await asyncio.sleep(curatorintervals)
-"""
-
-@bot.command(name='startcurating', help='Start curating the shots from the past week in the curator\'s output channel')
-async def startcurating(ctx):
-    #se puede cambiar la cantidad de dias en las que se fija para atras
-    #global candidates
-    channel = discord.utils.get(ctx.guild.channels, name=inputchannel) #ver si hay mejor forma de hacerlo
-
-    candidates= channel.history(after=(datetime.datetime.now() - timedelta(days = 7)),oldest_first=True)#.filter(lambda m: m.attachments and (not curate(m)))#candidatos "viejos"
+    candidates= channel.history(after=(datetime.datetime.now() - timedelta(days = 7)),oldest_first=True)
     listcandidates= await candidates.flatten()
-    listcandidates= filter(lambda m: m.attachments and (not curate(m)), listcandidates)
-    
-    #async for m in candidates:#debug
-    #    print(f'checheko de debugging: {curate(m)}')
+    listcandidates= list(filter(lambda m: m.attachments and (not curate(m)), listcandidates))
+
+    print(listcandidates)
+
+    return listcandidates
 
 
 
+async def getlistcandidatesupdate(ctx):
+    channel = discord.utils.get(ctx.guild.channels, name=inputchannel)
+
+    candidatesupdate= channel.history(after=(datetime.datetime.now() - timedelta(days = 7)),oldest_first=True)
+    listcandidatesupdate= await candidatesupdate.flatten()
+    listcandidatesupdate= list(filter(lambda m: curate(m), listcandidatesupdate))
+
+    print(listcandidatesupdate)
+
+    return listcandidatesupdate
+
+
+
+@bot.command(name='startcurating', help='Start curating the shots from the past week in the curator\'s output channel')
+async def startcurating(ctx):
     while True:
 
-        candidatesupdate= channel.history(after=(datetime.datetime.now() - timedelta(days = 7)),oldest_first=True)#.filter(lambda m : curate(m))
-        listcandidatesupdate= await candidatesupdate.flatten()
-        listcandidatesupdate= filter(curate, listcandidatesupdate)
-
-        #candidatesupdate= channel.history(after=(datetime.datetime.now() - timedelta(days = 7)),oldest_first=True).filter(lambda m : curate(m))
-        #me avisa cuales son los candidatos que pueden publicarse
-        
-        #async for m in candidatesupdate:#debug
-        #    print(f'Reviso candidatesupdate: {m.id}')
-
-        #async for m in candidates:#debug
-        #    print(f'Reviso candidates: {m.id}')
-
-        #print('Imprimiendo candidates')
-        #for e in listcandidates:
-        #    print(e.id)
-        #print('Imprimiendo candidatesupdate')
-        #for e in listcandidatesupdate:
-        #    print(e.id)
-
-
-        for message in listcandidates:#se fija si de su lista de candidatos que no publico si alguno se puede publicar ahora
-            print('checkeando')
-            if candidatescheck(message,listcandidatesupdate):
-                await curateaction(ctx,message)
-                print(f'Nice shot bro')
-        
-        
-        candidates= channel.history(after=(datetime.datetime.now() - timedelta(days = 7)),oldest_first=True)#.filter(lambda m: m.attachments and (not curate(m)))#candidatos "viejos"
-        listcandidates= await candidates.flatten()
-        listcandidates= filter(lambda m: m.attachments and (not curate(m)), listcandidates)
+        listcandidates= await getlistcandidates(ctx)
 
         print('Esperando que reaccionen capturas...')
         await asyncio.sleep(curatorintervals)
-        
-        
 
+        listcandidatesupdate= await getlistcandidatesupdate(ctx)
+        
+        for message in filter(lambda m: candidatescheck(m,listcandidates),listcandidatesupdate):
+            await curateaction(ctx,message)
+            print(f'Nice shot bro')
 
-"""
-@bot.event
-async def on_message(message):
-    global candidates
-    if message.channel.name==inputchannel and message.attachments!=[]:
-        candidates.append(message)
-"""
 
 
 @bot.command(name='dawnoftimecuration', help='Curate a seted up channel since it was created.')
 async def dawnoftime(ctx):
     channel = discord.utils.get(ctx.guild.channels, name=inputchannel) #ver si hay mejor forma de hacerlo
     async for message in channel.history(limit=200,oldest_first=True):
-        #if message.author != client.user:
         if curate(message):
-            await curateaction(ctx,message)
+            await curateaction2(ctx,message)
             print(f'Nice shot bro')
 
 
