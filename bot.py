@@ -52,7 +52,14 @@ async def curateaction2(ctx,message):
     channel = discord.utils.get(ctx.guild.channels, name=outputchannel)
     #shot=map(lambda m: m.url,message.attachments)
 
-    embed=discord.Embed(title=message.content,description=f"[Message link]({message.jump_url})")
+    gamename=message.content
+
+    if not gamename:
+        print('Buscando nombre del juego')
+        gamename= await getgamename(ctx,message)
+
+
+    embed=discord.Embed(title=gamename,description=f"[Message link]({message.jump_url})")
     embed.set_image(url=message.attachments[0].url)
     embed.set_author(name= f'Shot by {message.author}', icon_url=message.author.avatar_url)
     #embed.set_author(name= f'Shot by {message.author}')
@@ -60,6 +67,35 @@ async def curateaction2(ctx,message):
     embed.set_footer(text=f"{message.created_at}")
 
     await channel.send(embed=embed)
+
+
+def timedifabs(d1,d2):
+    if d1-d2<timedelta(days = 0):
+        return d2-d1
+    return d1-d2
+
+async def getgamename(ctx,message):#checks five messages before and after the message to see if it finds the name of the game
+    channel = discord.utils.get(ctx.guild.channels, name=inputchannel)
+    messages=  channel.history(around=message.created_at,oldest_first=True, limit=10)
+    listmessages= await messages.flatten()
+    #listmessages= list(filter(lambda m: m.content and (m.author==message.author), listmessages))
+    listmessages= list(listmessages)
+    #print(listmessages)
+
+    listmessages= list(filter(lambda m: m.content and (m.author==message.author), listmessages))
+
+
+    placeholdermessage= listmessages[0]
+    #print(listmessages)
+    #print(f'tiempo del mensaje principal:{message.created_at}')
+    for m in listmessages:
+        print(f'{m.content}: {timedifabs(placeholdermessage.created_at,message.created_at)} > {timedifabs(m.created_at,message.created_at)} ?')
+        if  timedifabs(placeholdermessage.created_at,message.created_at) > timedifabs(m.created_at,message.created_at):#no necesito hacer m!=message por que message no tiene content y se filtro antes
+            placeholdermessage=m
+    
+    return placeholdermessage.content
+
+
 
 
 def candidatescheck(m,c):#devuelve si el mensaje (identidificado por la url) se encuentra en el iterador del candidato
