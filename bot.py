@@ -42,16 +42,17 @@ def getchanneli(channelname):#not the best method to do this tho
     #for g in list(discord.Client.guilds):
 
     for g in bot.guilds:
-        if g.name== 'BotTest':
-        #if g.name== 'FRAMED - Screenshot Community':
+        #if g.name== 'BotTest':
+        if g.name== 'FRAMED - Screenshot Community':
             return discord.utils.get(g.channels, name=channelname)
 #--------------------------------------
 
 #------------Constants-----------------
-reactiontrigger = 1
+reactiontrigger = 15
 curatorintervals= 5 #time bwtween reaction checks
 daystocheck=7#the maximun age of the messages to check
 
+#initial values are in the on_ready() event
 inputchannel=None
 outputchannel=None
 #---------------------------------------
@@ -114,6 +115,8 @@ async def getgamename(ctx,message):#checks five messages before and after the me
 
     listmessages= list(filter(lambda m: m.content and (m.author==message.author), listmessages))
 
+    if not listmessages:
+        return ''
 
     placeholdermessage= listmessages[0]
     #print(listmessages)
@@ -165,7 +168,7 @@ async def on_ready():
     global inputchannel
     global outputchannel
     print(f'{bot.user.name} has connected to Discord!')
-    inputchannel=getchanneli('share-your-shot-bot')
+    inputchannel=getchanneli('share-your-shot')
     outputchannel=getchannelo('curator-bot')
 
 #Commands can only be done in the outputchannel
@@ -215,7 +218,7 @@ class BotActions(commands.Cog):
 
     @commands.command(name='curationsince', help='Curate a seated up channel since a specific number of days.')
     async def curationsince(self,ctx,d):
-        async for message in inputchannel.history(after=(datetime.datetime.now() - timedelta(days = d)),oldest_first=True,limit=None):
+        async for message in inputchannel.history(after=(datetime.datetime.now() - timedelta(days = int(d))),oldest_first=True,limit=None):
             if curate(message):
                 await curateaction2(ctx,message)
                 print(f'Nice shot bro')
