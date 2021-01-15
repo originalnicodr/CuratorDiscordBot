@@ -18,6 +18,8 @@ import time
 import traceback
 import sys
 
+import functools
+import operator
 
 load_dotenv()
 TOKEN = os.getenv('DISCORD_TOKEN')
@@ -60,10 +62,10 @@ outputchannel=None
 
 #-------Curate algorithms-----------
 
-
 #Takes the max number of reactions and compares it with the ractiontrigger value
-def curate(message): 
+def basicCuration(message): 
     if message.attachments:#que tiene una imagen
+    
         listNumberReactions= map(lambda m: m.count,message.reactions)
         #print(str(message.reactions))
         if message.reactions!=[]:
@@ -72,6 +74,73 @@ def curate(message):
             #print(f'Retorno la condicion, reactiontrigger <= reactions ={reactiontrigger <= reactions}')
             return (reactiontrigger <= reactions)
     return False
+
+
+
+
+#2400 shots with just clamping the result
+#1000 shots with linear interpolation
+#Takes the max number of reactions and compares it with a ractiontrigger value that varies based on the time where the shot was posted
+def historicalCuration(message): 
+
+    #for some reason outputchannel.created_at gives a wrong date, so we will be using 2019-02-26
+    channelscreationdate= datetime.datetime.strptime('2019-02-26','%Y-%m-%d')
+
+    if message.attachments:#que tiene una imagen
+        listNumberReactions= map(lambda m: m.count,message.reactions)
+        #print(str(message.reactions))
+        if message.reactions!=[]:
+            
+            #how new is the message from 0 to 1
+            valueovertime=(message.created_at-channelscreationdate).days/(datetime.datetime.now()-channelscreationdate).days
+            
+            #10 is the minnumun value to trigger while 20 is the max
+            #trigger=max(10,valueovertime*20) #len(members)/10 como valor max
+
+            #lintearinterpolation
+            trigger = (valueovertime * 20) + ((1-valueovertime) * 10)
+
+            print(f'Trigger value={trigger}')
+
+            reactions= max(listNumberReactions)
+            #print(f'reacciones={reactions}')
+            #print(f'Retorno la condicion, reactiontrigger <= reactions ={reactiontrigger <= reactions}')
+            return (trigger <= reactions)
+    return False
+
+
+#4000 shots with 15 to 25 values and 0.2 multiplier for other emojis
+def ExtendedCuration(message): 
+    if message.attachments:#que tiene una imagen
+
+        #How much do the other emojis weight
+        secondvalue=0.2
+    
+        listNumberReactions= list(map(lambda m: m.count,message.reactions))
+        #print(str(message.reactions))
+        if message.reactions!=[]:
+
+            #print(list(listNumberReactions))
+
+            #for some reason outputchannel.created_at gives a wrong date, so we will be using 2019-02-26
+            channelscreationdate= datetime.datetime.strptime('2019-02-26','%Y-%m-%d')
+            valueovertime=(message.created_at-channelscreationdate).days/(datetime.datetime.now()-channelscreationdate).days
+            trigger = (valueovertime * 25) + ((1-valueovertime) * 15)
+
+
+            premessagevalue= max(listNumberReactions)#value of the emoji with biggest amount of reactions
+            messagevalue= premessagevalue +  functools.reduce(operator.add, listNumberReactions,0) - premessagevalue*0.2
+
+
+            
+            #print(f'premessagevalue + fold list - premessagevalue*0.2={premessagevalue} + {functools.reduce(operator.add,listNumberReactions,0) } - {premessagevalue*0.2}')
+
+            print(f'Trigger value={trigger} <=messagevalue={messagevalue}')
+
+            #print(f'Retorno la condicion, reactiontrigger <= reactions ={reactiontrigger <= reactions}')
+            return (trigger <= messagevalue)
+    return False
+
 
 #-------------------------------------
 
@@ -87,6 +156,9 @@ async def curateaction2(ctx,message):
     if not gamename:
         print('Buscando nombre del juego')
         gamename= await getgamename(ctx,message)
+
+    if len(gamename)>256:
+        gamename=''
 
 
     embed=discord.Embed(title=gamename,description=f"[Message link]({message.jump_url})")
@@ -115,7 +187,8 @@ async def getgamename(ctx,message):#checks five messages before and after the me
 
     listmessages= list(filter(lambda m: m.content and (m.author==message.author), listmessages))
 
-    if not listmessages:
+
+    if (not listmessages) or len(listmessages)>256:
         return ''
 
     placeholdermessage= listmessages[0]
@@ -140,7 +213,7 @@ async def getlistcandidates(ctx):
     candidates= inputchannel.history(after=(datetime.datetime.now() - timedelta(days = daystocheck)),oldest_first=True,limit=None)
     listcandidates= await candidates.flatten()
     #print(f'listcandidates.len= {len(listcandidates)}')
-    listcandidates= list(filter(lambda m: m.attachments and (not curate(m)), listcandidates))
+    listcandidates= list(filter(lambda m: m.attachments and (not historicalCuration(m)), listcandidates))
 
     #print(listcandidates)
 
@@ -152,7 +225,7 @@ async def getlistcandidatesupdate(ctx):
     candidatesupdate= inputchannel.history(after=(datetime.datetime.now() - timedelta(days = daystocheck)),oldest_first=True,limit=None)
     listcandidatesupdate= await candidatesupdate.flatten()
     #print(f'listcandidatesupdate.len= {len(listcandidatesupdate)}')
-    listcandidatesupdate= list(filter(lambda m: curate(m), listcandidatesupdate))
+    listcandidatesupdate= list(filter(lambda m: historicalCuration(m), listcandidatesupdate))
 
     #print(listcandidatesupdate)
 
@@ -170,6 +243,10 @@ async def on_ready():
     print(f'{bot.user.name} has connected to Discord!')
     inputchannel=getchanneli('share-your-shot')
     outputchannel=getchannelo('curator-bot')
+
+
+#Si quiero hacer una funcion para retomar desde una fecha, usar esta
+#print(datetime.datetime.now() - datetime.datetime.strptime('2020-07-31 11:31:36','%Y-%m-%d %H:%M:%S'))
 
 #Commands can only be done in the outputchannel
 @bot.check
@@ -212,50 +289,21 @@ class BotActions(commands.Cog):
     @commands.command(name='dawnoftimecuration', help='Curate a seated up channel since it was created.')
     async def dawnoftime(self,ctx):
         async for message in inputchannel.history(limit=None,oldest_first=True):
-            if curate(message):
+            if historicalCuration(message):
                 await curateaction2(ctx,message)
                 print(f'Nice shot bro')
+        print(f'Done curating')
 
     @commands.command(name='curationsince', help='Curate a seated up channel since a specific number of days.')
     async def curationsince(self,ctx,d):
         async for message in inputchannel.history(after=(datetime.datetime.now() - timedelta(days = int(d))),oldest_first=True,limit=None):
-            if curate(message):
+            if historicalCuration(message):
                 await curateaction2(ctx,message)
                 print(f'Nice shot bro')
+        print(f'Done curating')
+
 
 bot.add_cog(BotActions())
-
-"""
-
-@bot.command(name='startcurating', help='Start curating the shots from the past week in the curator\'s output channel')
-async def startcurating(ctx):
-    while True:
-
-        listcandidates= await getlistcandidates(ctx)
-
-        print('Esperando que reaccionen capturas...')
-        await asyncio.sleep(curatorintervals)
-
-        listcandidatesupdate= await getlistcandidatesupdate(ctx)
-        
-        for message in filter(lambda m: candidatescheck(m,listcandidates),listcandidatesupdate):
-            await curateaction2(ctx,message)
-            print(f'Nice shot bro')
-    
-@bot.command(name='dawnoftimecuration', help='Curate a seated up channel since it was created.')
-async def dawnoftime(ctx):
-    async for message in inputchannel.history(limit=None,oldest_first=True):
-        if curate(message):
-            await curateaction2(ctx,message)
-            print(f'Nice shot bro')
-
-@bot.command(name='curationsince', help='Curate a seated up channel since a specific number of days.')
-async def curationsince(ctx,d):
-    async for message in inputchannel.history(after=(datetime.datetime.now() - timedelta(days = d)),oldest_first=True,limit=None):
-        if curate(message):
-            await curateaction2(ctx,message)
-            print(f'Nice shot bro')
-"""
 
 
 
