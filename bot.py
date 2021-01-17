@@ -21,6 +21,7 @@ import sys
 import functools
 import operator
 
+
 load_dotenv()
 TOKEN = os.getenv('DISCORD_TOKEN')
 
@@ -50,13 +51,27 @@ def getchanneli(channelname):#not the best method to do this tho
 #--------------------------------------
 
 #------------Constants-----------------
-reactiontrigger = 15
+
+#For basicCuration
+reactiontrigger = 20
+
 curatorintervals= 5 #time bwtween reaction checks
 daystocheck=7#the maximun age of the messages to check
+
+
+curationlgorithmpast= lambda m : historicalCuration(m)
+curationlgorithm= lambda m :  basicCuration(m)
+
+#Curation Algorithms:
+# basicCuration(m)
+# historicalCuration(m)
+# extendedCuration(m)
+# completeCuration(m)
 
 #initial values are in the on_ready() event
 inputchannel=None
 outputchannel=None
+
 #---------------------------------------
 
 
@@ -86,6 +101,10 @@ def historicalCuration(message):
     #for some reason outputchannel.created_at gives a wrong date, so we will be using 2019-02-26
     channelscreationdate= datetime.datetime.strptime('2019-02-26','%Y-%m-%d')
 
+    #Minnimun and maximun values that are used in the linear interpolation
+    minv=10
+    maxv=reactiontrigger #=20 at first
+
     if message.attachments:#que tiene una imagen
         listNumberReactions= map(lambda m: m.count,message.reactions)
         #print(str(message.reactions))
@@ -97,8 +116,8 @@ def historicalCuration(message):
             #10 is the minnumun value to trigger while 20 is the max
             #trigger=max(10,valueovertime*20) #len(members)/10 como valor max
 
-            #lintearinterpolation
-            trigger = (valueovertime * 20) + ((1-valueovertime) * 10)
+            #linearinterpolation
+            trigger = (valueovertime * maxv) + ((1-valueovertime) * minv)
 
             print(f'Trigger value={trigger}')
 
@@ -110,7 +129,7 @@ def historicalCuration(message):
 
 
 #4000 shots with 15 to 25 values and 0.2 multiplier for other emojis
-def ExtendedCuration(message): 
+def extendedCuration(message): 
     if message.attachments:#que tiene una imagen
 
         #How much do the other emojis weight
@@ -120,27 +139,57 @@ def ExtendedCuration(message):
         #print(str(message.reactions))
         if message.reactions!=[]:
 
-            #print(list(listNumberReactions))
-
-            #for some reason outputchannel.created_at gives a wrong date, so we will be using 2019-02-26
-            channelscreationdate= datetime.datetime.strptime('2019-02-26','%Y-%m-%d')
-            valueovertime=(message.created_at-channelscreationdate).days/(datetime.datetime.now()-channelscreationdate).days
-            trigger = (valueovertime * 25) + ((1-valueovertime) * 15)
-
-
             premessagevalue= max(listNumberReactions)#value of the emoji with biggest amount of reactions
-            messagevalue= premessagevalue +  functools.reduce(operator.add, listNumberReactions,0) - premessagevalue*0.2
+            messagevalue= premessagevalue +  functools.reduce(operator.add, list(map(lambda r: r*secondvalue,listNumberReactions)),0) - premessagevalue*secondvalue
 
 
             
-            #print(f'premessagevalue + fold list - premessagevalue*0.2={premessagevalue} + {functools.reduce(operator.add,listNumberReactions,0) } - {premessagevalue*0.2}')
+            print(f'premessagevalue + fold list - premessagevalue*0.2={premessagevalue} + {functools.reduce(operator.add, list(map(lambda r: r*secondvalue,listNumberReactions)),0) } - {premessagevalue*secondvalue}')
+
+            print(f'Reactiontrigger={reactiontrigger} <=messagevalue={messagevalue}')
+
+            #print(f'Retorno la condicion, reactiontrigger <= reactions ={reactiontrigger <= reactions}')
+            return (reactiontrigger <= messagevalue)
+    return False
+
+
+def completeCuration(message): 
+    if message.attachments:#que tiene una imagen
+
+        #for some reason outputchannel.created_at gives a wrong date, so we will be using 2019-02-26
+        channelscreationdate= datetime.datetime.strptime('2019-02-26','%Y-%m-%d')
+
+        #Minnimun and maximun values that are used in the linear interpolation
+        minv=15
+        maxv=25
+
+        #How much do the other emojis weight
+        secondvalue=0.2
+
+    
+        listNumberReactions= list(map(lambda m: m.count,message.reactions))
+        #print(str(message.reactions))
+        if message.reactions!=[]:
+
+            #print(list(listNumberReactions))
+
+
+            valueovertime=(message.created_at-channelscreationdate).days/(datetime.datetime.now()-channelscreationdate).days
+            trigger = (valueovertime * maxv) + ((1-valueovertime) * minv)
+
+
+            premessagevalue= max(listNumberReactions)#value of the emoji with biggest amount of reactions
+            messagevalue= premessagevalue +  functools.reduce(operator.add, list(map(lambda r: r*secondvalue,listNumberReactions)),0) - premessagevalue*secondvalue
+
+
+            
+            #print(f'premessagevalue + fold list - premessagevalue*0.2={premessagevalue} + {functools.reduce(operator.add, list(map(lambda r: r*secondvalue,listNumberReactions)),0) } - {premessagevalue*secondvalue}')
 
             print(f'Trigger value={trigger} <=messagevalue={messagevalue}')
 
             #print(f'Retorno la condicion, reactiontrigger <= reactions ={reactiontrigger <= reactions}')
             return (trigger <= messagevalue)
     return False
-
 
 #-------------------------------------
 
@@ -213,7 +262,7 @@ async def getlistcandidates(ctx):
     candidates= inputchannel.history(after=(datetime.datetime.now() - timedelta(days = daystocheck)),oldest_first=True,limit=None)
     listcandidates= await candidates.flatten()
     #print(f'listcandidates.len= {len(listcandidates)}')
-    listcandidates= list(filter(lambda m: m.attachments and (not historicalCuration(m)), listcandidates))
+    listcandidates= list(filter(lambda m: m.attachments and (not curationlgorithm(m)), listcandidates))
 
     #print(listcandidates)
 
@@ -225,11 +274,43 @@ async def getlistcandidatesupdate(ctx):
     candidatesupdate= inputchannel.history(after=(datetime.datetime.now() - timedelta(days = daystocheck)),oldest_first=True,limit=None)
     listcandidatesupdate= await candidatesupdate.flatten()
     #print(f'listcandidatesupdate.len= {len(listcandidatesupdate)}')
-    listcandidatesupdate= list(filter(lambda m: historicalCuration(m), listcandidatesupdate))
+    listcandidatesupdate= list(filter(lambda m: curationlgorithm(m), listcandidatesupdate))
 
     #print(listcandidatesupdate)
 
     return listcandidatesupdate
+
+def creationDateCheck(message):
+    if message.embeds:
+        date=datetime.datetime.strptime(message.embeds[0].footer.text.split('.',1)[0],'%Y-%m-%d %H:%M:%S')
+        #print(date)
+        return datetime.datetime.now() - timedelta(days = daystocheck) <= date
+
+
+#not a command, used on_ready
+async def curationsincedate(ctx,d):
+        listcandidates= await getlistcandidatesupdate(ctx)
+        alreadyposted= outputchannel.history(after=d,oldest_first=True,limit=None)
+        listalreadyposted= await alreadyposted.flatten()
+        listalreadyposted=list(filter(creationDateCheck,listalreadyposted))
+        print('curating')
+        #print(listcandidates)
+        #print(listalreadyposted)
+        for m1 in listcandidates:
+            flag= True
+            for m2 in listalreadyposted:
+                #print(m1)
+                #print(m2)
+                if m2.embeds:
+                    #print(f'm1 != m2:{m1.jump_url}!={m2.embeds[0].description[m2.embeds[0].description.find("(")+1:m2.embeds[0].description.find(")")]}')
+                    if m1.jump_url == m2.embeds[0].description[m2.embeds[0].description.find("(")+1:m2.embeds[0].description.find(")")]:
+                        print('esta ya ta')
+                        flag=False
+                        break
+            if flag:
+                await curateaction2(ctx,m1)
+                print(f'Nice shot bro')
+        print('Up to date')
 
 
 #--------------------------------------------------------------------
@@ -242,7 +323,22 @@ async def on_ready():
     global outputchannel
     print(f'{bot.user.name} has connected to Discord!')
     inputchannel=getchanneli('share-your-shot')
-    outputchannel=getchannelo('curator-bot')
+    outputchannel=getchannelo('share-your-shot-bot')#curator-bot
+
+    #Lets get the last messages published by the bot in the channel, and run a curationsince command based on that
+
+    #initialmessageslist=await outputchannel.history(limit=10).flatten()
+
+    async for m in outputchannel.history(limit=10):
+        if m.author == bot.user and m.embeds:
+            date= m.created_at - timedelta(days = daystocheck)
+            #print(f'datetime.datetime.now() - m.created_at= {datetime.datetime.now()} - {m.created_at}')
+            #print(date)
+            await curationsincedate([], date)
+            #await startcurating(self,[])
+            break
+
+    
 
 
 #Si quiero hacer una funcion para retomar desde una fecha, usar esta
@@ -274,6 +370,39 @@ class BotActions(commands.Cog):
     @commands.command(name='startcurating', help='Start curating the shots from the past week in the curator\'s output channel')
     async def startcurating(self,ctx):
         while True:
+            listcandidates= await getlistcandidatesupdate(ctx)
+
+            alreadyposted= outputchannel.history(after=(datetime.datetime.now() - timedelta(days = daystocheck)),oldest_first=True,limit=None)
+            listalreadyposted= await alreadyposted.flatten()
+            listalreadyposted=list(filter(creationDateCheck,listalreadyposted))
+
+            print('curating')
+
+            #print(listcandidates)
+            #print(listalreadyposted)
+
+            for m1 in listcandidates:
+                flag= True
+                for m2 in listalreadyposted:
+                    #print(m1)
+                    #print(m2)
+                    if m2.embeds:
+                        #print(f'm1 != m2:{m1.jump_url}!={m2.embeds[0].description[m2.embeds[0].description.find("(")+1:m2.embeds[0].description.find(")")]}')
+                        if m1.jump_url == m2.embeds[0].description[m2.embeds[0].description.find("(")+1:m2.embeds[0].description.find(")")]:
+                            print('esta ya ta')
+                            flag=False
+                            break
+                if flag:
+                    await curateaction2(ctx,m1)
+                    print(f'Nice shot bro')
+
+
+            await asyncio.sleep(curatorintervals)
+
+    
+    @commands.command(name='startcuratingold', help='Start curating the shots from the past week in the curator\'s output channel')
+    async def startcuratingold(self,ctx):
+        while True:
 
             listcandidates= await getlistcandidates(ctx)
 
@@ -289,7 +418,7 @@ class BotActions(commands.Cog):
     @commands.command(name='dawnoftimecuration', help='Curate a seated up channel since it was created.')
     async def dawnoftime(self,ctx):
         async for message in inputchannel.history(limit=None,oldest_first=True):
-            if historicalCuration(message):
+            if curationlgorithmpast(message):
                 await curateaction2(ctx,message)
                 print(f'Nice shot bro')
         print(f'Done curating')
@@ -297,13 +426,78 @@ class BotActions(commands.Cog):
     @commands.command(name='curationsince', help='Curate a seated up channel since a specific number of days.')
     async def curationsince(self,ctx,d):
         async for message in inputchannel.history(after=(datetime.datetime.now() - timedelta(days = int(d))),oldest_first=True,limit=None):
-            if historicalCuration(message):
+            if curationlgorithmpast(message):
                 await curateaction2(ctx,message)
                 print(f'Nice shot bro')
         print(f'Done curating')
 
 
+
+    @commands.command(name='curationsince2', help='Start curating the shots from the past week in the curator\'s output channel')
+    async def curationsince2(self,ctx,d):
+        listcandidates= await getlistcandidatesupdate(ctx)
+        alreadyposted= outputchannel.history(after=(datetime.datetime.now() - timedelta(days = int(d))),oldest_first=True,limit=None)
+        listalreadyposted= await alreadyposted.flatten()
+        listalreadyposted=list(filter(creationDateCheck,listalreadyposted))
+        print('curating')
+        #print(listcandidates)
+        #print(listalreadyposted)
+        for m1 in listcandidates:
+            flag= True
+            for m2 in listalreadyposted:
+                #print(m1)
+                #print(m2)
+                if m2.embeds:
+                    #print(f'm1 != m2:{m1.jump_url}!={m2.embeds[0].description[m2.embeds[0].description.find("(")+1:m2.embeds[0].description.find(")")]}')
+                    if m1.jump_url == m2.embeds[0].description[m2.embeds[0].description.find("(")+1:m2.embeds[0].description.find(")")]:
+                        print('esta ya ta')
+                        flag=False
+                        break
+            if flag:
+                await curateaction2(ctx,m1)
+                print(f'Nice shot bro')
+        print('Done curating')
+
+
+    @commands.command(name='startcurating2', help='Start curating the shots from the past week in the curator\'s output channel')
+    async def startcurating2(self,ctx):
+        while True:
+            await curationActive()
+            await asyncio.sleep(curatorintervals)
+        
+
+
+
+
 bot.add_cog(BotActions())
+
+
+async def curationActive():
+    listcandidates= await getlistcandidatesupdate([])
+    alreadyposted= outputchannel.history(after=(datetime.datetime.now() - timedelta(days = daystocheck)),oldest_first=True,limit=None)
+    listalreadyposted= await alreadyposted.flatten()
+    listalreadyposted=list(filter(creationDateCheck,listalreadyposted))
+    print('schedule curation')
+    #print(listcandidates)
+    #print(listalreadyposted)
+    for m1 in listcandidates:
+        flag= True
+        for m2 in listalreadyposted:
+            #print(m1)
+            #print(m2)
+            if m2.embeds:
+                #print(f'm1 != m2:{m1.jump_url}!={m2.embeds[0].description[m2.embeds[0].description.find("(")+1:m2.embeds[0].description.find(")")]}')
+                if m1.jump_url == m2.embeds[0].description[m2.embeds[0].description.find("(")+1:m2.embeds[0].description.find(")")]:
+                    print('esta ya ta')
+                    flag=False
+                    break
+        if flag:
+            await curateaction2([],m1)
+            print(f'Nice shot bro')
+    await asyncio.sleep(curatorintervals)
+        
+
+
 
 
 
@@ -320,11 +514,6 @@ class ConfigCommands(commands.Cog):
         global outputchannel
         outputchannel= getchannelo(channelsName)
 
-    @commands.command(name='setreactiontrigger', help='Define the amount of reactions necessary to accept the message.')
-    async def setreactiontrigger(self,ctx, n):
-        global reactiontrigger 
-        reactiontrigger = int(n)
-
     @commands.command(name='setcuratorintervals', help='Define the time interval (in seconds) between reactions revisions.')
     async def setcuratorintervals(self,ctx, s):
         global curatorintervals
@@ -334,6 +523,15 @@ class ConfigCommands(commands.Cog):
     async def setdaystocheck(self,ctx, n):
         global daystocheck
         daystocheck= int(n)
+
+    #set
+
+    @commands.command(name='setreactiontrigger', help='Define the amount of reactions necessary to accept the message.')
+    async def setreactiontrigger(self,ctx, n):
+        global reactiontrigger 
+        reactiontrigger = int(n)
+
+    
 
 bot.add_cog(ConfigCommands())
 
