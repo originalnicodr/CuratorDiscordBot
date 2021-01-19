@@ -3,19 +3,21 @@
 # <p align="center">CuratorBot</p>
  
   <a href="https://github.com/Rapptz/discord.py/">
-     <img src="https://img.shields.io/badge/discord-py-blue.svg" alt="discord.py"></a>
+     <img src="https://img.shields.io/badge/discordpy-1.6.0-blue.svg" alt="discord.py"></a>
   <a href="https://github.com/msiemens/tinydb">
-     <img src="https://img.shields.io/badge/tinyDB--blue.svg" alt="discord.py"></a>
+     <img src="https://img.shields.io/badge/tinyDB-4.3.0-blue.svg" alt="discord.py"></a>
+  <a href="https://github.com/gitpython-developers/GitPython">
+     <img src="https://img.shields.io/badge/GitPython-3.1.12-blue.svg" alt="discord.py"></a>
  
 ## About
  
-CuratorBot is a bot dedicated to select the best screenshots from a channel and send them to another channel.
+CuratorBot is a bot dedicated to selecting the best screenshots from a channel and sending them to another channel.
  
 Since I made this for a server I am in, it has a lot of assumptions, like searching for a message with text around the screenshot message if this one has no text specifying the game, so I apologise for it.
  
 <p align="center"><img src="https://user-images.githubusercontent.com/24371572/104781820-eb88fe00-5761-11eb-91d0-6daf4448ebad.png">
  
-The bot also puts every curated shot link in a .json file, so the file can be used as a database for a website showing the screenshots and the bot as an updater for the database.
+The bot also puts every curated shot link in a .json file a push it to a github repo, which would act, so the file can be used as a database for a website showing the screenshots and the bot as an updater for said database.
  
 ## How does it work
  
@@ -38,14 +40,17 @@ All algorithms also check if the message has an image, if not they discard the m
 To setup this as your own bot you will need to create an `.env` file with the discord bot token inside:
  
 ```
-DISCORD_TOKEN=yourbotdiscordtoken
+DISCORD_TOKEN=yourDiscordBotToken
+GIT_TOKEN=githubPersonalAccessTokens
 ```
  
 Later you will have to change the input channel (where the bot looks up for messages) and the output channel (where the bot will send the accepted messages). You can change these values on runtime or change the initial values from the code.
  
-You can online change the curation algorithms and their values from the code. The info is in the **Constants** section.
+You can change the curation algorithms and their values from the code. The info is in the **Constants** section and at the start of each algorithm function.
  
-Keep in mind that you can also discriminate between different servers for the input and output channels.
+Keep in mind that you can also discriminate between different servers for the input and output channels in the **getchannel** functions.
+
+To change the repo where the bot will push change the link in the **Github integration**
  
 ## Usage
  
@@ -67,3 +72,17 @@ I made this bot for being able to curate retroactively, so the correct way to us
   - **!help**: Show this help message.
  
   Do bear in mind that the values changed by the set commands work only on runtime. If you don't know if your bot will go down temporarily change the values in the file instead.
+
+## JSON Database structure
+
+The .json file generated, modified and pushed by the bot consists of elements of the following structure
+
+```
+{"gameName": string,
+ "shotUrl": string,
+ "author": string,
+ "authorsAvatarUrl": string,
+ "date": string}
+```
+
+As a sidenote, the date is using the format `Year`-`Month`-`Day`T`Hour`:`Minute`:`Second`.`Millisecond`.
