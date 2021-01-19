@@ -1,12 +1,12 @@
 # bot.py
+
+#--------Modules---------------------------
 import os
 from dotenv import load_dotenv
 
-# 1
 import discord
 from discord.ext import commands
 
-#import timedelta
 import datetime
 from datetime import timedelta
 
@@ -21,42 +21,19 @@ import sys
 import functools
 import operator
 
-from tinydb import TinyDB, Query
+from tinydb import TinyDB
 
-from git import Repo, Git
+from git import Repo
+#-----------------------------------------------
 
-
-
-
-
+#--------------------Enviroment variables--------
 load_dotenv()
 TOKEN = os.getenv('DISCORD_TOKEN')
 GIT_TOKEN= os.getenv('GIT_TOKEN')
+#-----------------------------------------------
 
-# 2
 bot = commands.Bot(command_prefix='!')
 
-
-#----------Funcion separada en dos para debugging, despues juntar--------
-
-def getchannelo(channelname):#not the best method to do this tho
-    #print(list(discord.Client.guilds))
-    #for g in list(discord.Client.guilds):
-
-    for g in bot.guilds:
-        if g.name== 'BotTest':
-        #if g.name== 'FRAMED - Screenshot Community':
-            return discord.utils.get(g.channels, name=channelname)
-
-def getchanneli(channelname):#not the best method to do this tho
-    #print(list(discord.Client.guilds))
-    #for g in list(discord.Client.guilds):
-
-    for g in bot.guilds:
-        #if g.name== 'BotTest':
-        if g.name== 'FRAMED - Screenshot Community':
-            return discord.utils.get(g.channels, name=channelname)
-#--------------------------------------
 
 #------------Constants-----------------
 
@@ -83,7 +60,7 @@ curationlgorithm= lambda m :  basicCuration(m)
 ignoredusers=[]
 
 
-#initial values are in the on_ready() event
+#initial values are set in the on_ready() event
 inputchannel=None
 outputchannel=None
 
@@ -92,11 +69,11 @@ outputchannel=None
 #-----------Github integration --------------------------
 
 
-websiterepourl = f'https://originalnicodrgitbot:{GIT_TOKEN}@github.com/originalnicodrgitbot/test-git-python.git'
+websiterepourl = f'https://youtgihubuserhere:{GIT_TOKEN}@github.com/owneroftherepo/repo-name.git'
 websiterepofolder = 'websiterepo'
 
 repo = Repo.clone_from(websiterepourl, websiterepofolder)
-assert repo.__class__ is Repo     # clone an existing repository
+assert repo.__class__ is Repo
 
 #database for using the shots in a website
 db = TinyDB('websiterepo/shotsdb.json')
@@ -112,26 +89,18 @@ def dbgitupdate():
 
 #-------------------------------------------------------------
 
-#-------Curate algorithms-----------
+#-------Curation algorithms-----------
 
 #Takes the max number of reactions and compares it with the ractiontrigger value
 def basicCuration(message): 
-    if message.attachments:#que tiene una imagen
+    if message.attachments:
     
         listNumberReactions= map(lambda m: m.count,message.reactions)
-        #print(str(message.reactions))
         if message.reactions!=[]:
             reactions= max(listNumberReactions)
-            #print(f'reacciones={reactions}')
-            #print(f'Retorno la condicion, reactiontrigger <= reactions ={reactiontrigger <= reactions}')
             return (reactiontrigger <= reactions)
     return False
 
-
-
-
-#2400 shots with just clamping the result
-#1000 shots with linear interpolation
 #Takes the max number of reactions and compares it with a ractiontrigger value that varies based on the time where the shot was posted
 def historicalCuration(message): 
 
@@ -140,40 +109,33 @@ def historicalCuration(message):
 
     #Minnimun and maximun values that are used in the linear interpolation
     minv=10
-    maxv=reactiontrigger #=20 at first
+    maxv=reactiontrigger
 
-    if message.attachments:#que tiene una imagen
+    if message.attachments:
         listNumberReactions= map(lambda m: m.count,message.reactions)
-        #print(str(message.reactions))
         if message.reactions!=[]:
             
             #how new is the message from 0 to 1
             valueovertime=(message.created_at-channelscreationdate).days/(datetime.datetime.now()-channelscreationdate).days
             
-            #10 is the minnumun value to trigger while 20 is the max
-            #trigger=max(10,valueovertime*20) #len(members)/10 como valor max
 
             #linearinterpolation
             trigger = (valueovertime * maxv) + ((1-valueovertime) * minv)
-
+            print(f'(valueovertime * maxv) + ((1-valueovertime) * minv)= ({valueovertime} * {maxv}) + ((1-{valueovertime}) * {minv})')
             print(f'Trigger value={trigger}')
 
             reactions= max(listNumberReactions)
-            #print(f'reacciones={reactions}')
-            #print(f'Retorno la condicion, reactiontrigger <= reactions ={reactiontrigger <= reactions}')
             return (trigger <= reactions)
     return False
 
 
-#4000 shots with 15 to 25 values and 0.2 multiplier for other emojis
 def extendedCuration(message): 
-    if message.attachments:#que tiene una imagen
+    if message.attachments:
 
-        #How much do the other emojis weight
+        #How much do the other emojis "weight" to the final number
         secondvalue=0.2
     
         listNumberReactions= list(map(lambda m: m.count,message.reactions))
-        #print(str(message.reactions))
         if message.reactions!=[]:
 
             premessagevalue= max(listNumberReactions)#value of the emoji with biggest amount of reactions
@@ -184,14 +146,12 @@ def extendedCuration(message):
             print(f'premessagevalue + fold list - premessagevalue*0.2={premessagevalue} + {functools.reduce(operator.add, list(map(lambda r: r*secondvalue,listNumberReactions)),0) } - {premessagevalue*secondvalue}')
 
             print(f'Reactiontrigger={reactiontrigger} <=messagevalue={messagevalue}')
-
-            #print(f'Retorno la condicion, reactiontrigger <= reactions ={reactiontrigger <= reactions}')
             return (reactiontrigger <= messagevalue)
     return False
 
 
 def completeCuration(message): 
-    if message.attachments:#que tiene una imagen
+    if message.attachments:
 
         #for some reason outputchannel.created_at gives a wrong date, so we will be using 2019-02-26
         channelscreationdate= datetime.datetime.strptime('2019-02-26','%Y-%m-%d')
@@ -202,41 +162,25 @@ def completeCuration(message):
 
         #How much do the other emojis weight
         secondvalue=0.2
-
     
         listNumberReactions= list(map(lambda m: m.count,message.reactions))
-        #print(str(message.reactions))
         if message.reactions!=[]:
-
-            #print(list(listNumberReactions))
-
 
             valueovertime=(message.created_at-channelscreationdate).days/(datetime.datetime.now()-channelscreationdate).days
             trigger = (valueovertime * maxv) + ((1-valueovertime) * minv)
 
-
             premessagevalue= max(listNumberReactions)#value of the emoji with biggest amount of reactions
             messagevalue= premessagevalue +  functools.reduce(operator.add, list(map(lambda r: r*secondvalue,listNumberReactions)),0) - premessagevalue*secondvalue
 
-
-            
-            #print(f'premessagevalue + fold list - premessagevalue*0.2={premessagevalue} + {functools.reduce(operator.add, list(map(lambda r: r*secondvalue,listNumberReactions)),0) } - {premessagevalue*secondvalue}')
-
             print(f'Trigger value={trigger} <=messagevalue={messagevalue}')
 
-            #print(f'Retorno la condicion, reactiontrigger <= reactions ={reactiontrigger <= reactions}')
             return (trigger <= messagevalue)
     return False
 
 #-------------------------------------
 
 
-#--------------------------Curation action functions
-"""
-async def curateaction(ctx,message):
-    await outputchannel.send(f'Shot by {message.author}\n "{message.content}"\n{message.attachments[0].url}')
-"""
-
+#------------Curation action functions--------------
 async def postembed(message,gamename):
     embed=discord.Embed(title=gamename,description=f"[Message link]({message.jump_url})")
     embed.set_image(url=message.attachments[0].url)
@@ -252,9 +196,8 @@ async def writedbdawnoftime(message,gamename):
     if message.author.id in ignoredusers:
         return
     db.insert({'gameName': gamename, 'shotUrl': message.attachments[0].url, 'author': message.author.name, 'authorsAvatarUrl': str(message.author.avatar_url), 'date': message.created_at.strftime('%Y-%m-%dT%H:%M:%S.%f')})
-    #Will commit the update at the end of dawnoftimecuration (maybe not the best?)
 
-#instead of using the date of the message it uses the actual time, that way if you sort by new, the new shots would always be on top, instead of getting mixed
+#instead of using the date of the message it uses the actual time, that way if you sort by new in the future website, the new shots would always be on top, instead of getting mixed
 async def writedb(message,gamename):
     if message.author.id in ignoredusers:
         return
@@ -262,18 +205,13 @@ async def writedb(message,gamename):
     dbgitupdate()
 
 async def curateaction(message):
-    #print(f'author.id: {message.author.id}')
     gamename= await getgamename(message)
-    if len(gamename)>255:
-        gamename=''
     await writedb(message,gamename)
     await postembed(message,gamename)
 
 
 async def curateactiondawnoftime(message):
     gamename= await getgamename(message)
-    if len(gamename)>255:
-        gamename=''
     await postembed(message,gamename)
     await writedbdawnoftime(message,gamename)
 
@@ -287,45 +225,32 @@ def timedifabs(d1,d2):
         return d2-d1
     return d1-d2
 
-async def getgamename(message):#checks five messages before and after the message to see if it finds the name of the game
+#Checks five messages before and after the message to see if it finds a text to use as name of the game
+async def getgamename(message):
     gamename=message.content
 
-    if gamename:
+    if gamename and len(gamename)<255:
         return gamename
 
     print('Buscando nombre del juego')
 
-    
-
     messages=  inputchannel.history(around=message.created_at,oldest_first=True, limit=10)
     listmessages= await messages.flatten()
-    #listmessages= list(filter(lambda m: m.content and (m.author==message.author), listmessages))
     listmessages= list(listmessages)
-    #print(listmessages)
 
-    listmessages= list(filter(lambda m: len(m.content)<255 and m.content and (m.author==message.author), listmessages))#m.content tenia antes, pero no estaria piola por que a veces ponen el nombre del juego en un mensaje a parte
+    listmessages= list(filter(lambda m: m.content and len(m.content)<255 and (m.author==message.author), listmessages))
 
-
-    if (not listmessages): #len(listmessages)>256: #eso estaba al pedo creo
-        print('primer if')
+    if (not listmessages):
         return ''
 
     placeholdermessage= listmessages[0]#it never fails because of the previous if
-    #print(listmessages)
-    #print(f'tiempo del mensaje principal:{message.created_at}')
     for m in listmessages:
-        #si tira nombres mal sacar el m.content del filter de listmessages y ponerlo en el if de aca abajo
-        if  timedifabs(placeholdermessage.created_at,message.created_at) > timedifabs(m.created_at,message.created_at):#no necesito hacer m!=message por que message no tiene content y se filtro antes
+        if  timedifabs(placeholdermessage.created_at,message.created_at) > timedifabs(m.created_at,message.created_at):
             placeholdermessage=m
     
-    #cant be used in the embed
-    if len(placeholdermessage.content)>255:
-        print('segundo if')
-        return ''
-
     return placeholdermessage.content
 
-#Devuelve si el mensaje (identidificado por la url) se encuentra en el iterador del candidato
+#Checks if the message (identified by the url) is on the list
 def candidatescheck(m,c):
     for mc in c:
         print(f'{m.id}=={mc.id}: {m.id==mc.id}')
@@ -333,105 +258,32 @@ def candidatescheck(m,c):
             return True
     return False
 
-"""
-async def getlistcandidates():
-    global inputchannel
-    candidates= inputchannel.history(after=(datetime.datetime.now() - timedelta(days = daystocheck)),oldest_first=True,limit=None)
-    listcandidates= await candidates.flatten()
-    #print(f'listcandidates.len= {len(listcandidates)}')
-    listcandidates= list(filter(lambda m: m.attachments and (not curationlgorithm(m)), listcandidates))
-
-    #print(listcandidates)
-
-    return listcandidates
-"""
-
-"""
-async def getlistcandidatesupdate():
-    candidatesupdate= inputchannel.history(after=(datetime.datetime.now() - timedelta(days = daystocheck)),oldest_first=True,limit=None)
-    listcandidatesupdate= await candidatesupdate.flatten()
-    #print(f'listcandidatesupdate.len= {len(listcandidatesupdate)}')
-    listcandidatesupdate= list(filter(lambda m: curationlgorithm(m), listcandidatesupdate))
-
-    #print(listcandidatesupdate)
-
-    return listcandidatesupdate
-"""
-
 def creationDateCheck(message):
     if message.embeds:
         date=datetime.datetime.strptime(message.embeds[0].footer.text.split('.',1)[0],'%Y-%m-%d %H:%M:%S')
-        #print(date)
         return datetime.datetime.now() - timedelta(days = daystocheck) <= date
 
 
+#----------These are divided in two functions to filter between channels (security messure)--------
 
-#not a command, used on_ready
-"""
-async def curationsincedate(ctx,d):
-        listcandidates= await getlistcandidatesupdate(ctx)
-        alreadyposted= outputchannel.history(after=d,oldest_first=True,limit=None)
-        listalreadyposted= await alreadyposted.flatten()
-        listalreadyposted=list(filter(creationDateCheck,listalreadyposted))
-        print('curating')
-        #print(listcandidates)
-        #print(listalreadyposted)
-        for m1 in listcandidates:
-            flag= True
-            for m2 in listalreadyposted:
-                #print(m2)
-                if m2.embeds:
-                    #print(f'm1 != m2:{m1.jump_url}!={m2.embeds[0].description[m2.embeds[0].description.find("(")+1:m2.embeds[0].description.find(")")]}')
-                    if m1.jump_url == m2.embeds[0].description[m2.embeds[0].description.find("(")+1:m2.embeds[0].description.find(")")]:
-                        print(f'esta ya ta')
-                        flag=False
-                        break
-            if flag:
-                await curateaction(ctx,m1)
-                print(f'Nice shot bro')
-        print('Up to date')
-"""
+def getchannelo(channelname):#not the best method to do this tho
+    #print(list(discord.Client.guilds))
+    #for g in list(discord.Client.guilds):
+
+    for g in bot.guilds:
+        if g.name== 'InputServersName':
+            return discord.utils.get(g.channels, name=channelname)
+
+def getchanneli(channelname):#not the best method to do this tho
+    #print(list(discord.Client.guilds))
+    #for g in list(discord.Client.guilds):
+
+    for g in bot.guilds:
+        if g.name== 'OutputServersName':
+            return discord.utils.get(g.channels, name=channelname)
+#-------------------------------------------------------------------------------------------------
 
 #--------------------------------------------------------------------
-
-
-
-#reads the messages since a number of days and post the accepted shots that havent been posted yet
-async def curationActive(d):#d viejo= (datetime.datetime.now() - timedelta(days = d))
-
-    #-----------------get listcandidates
-    candidatesupdate= inputchannel.history(after=d,oldest_first=True,limit=None)
-    listcandidates= await candidatesupdate.flatten()
-    #print(f'listcandidatesupdate.len= {len(listcandidates)}')
-    listcandidates= list(filter(lambda m: curationlgorithm(m), listcandidates))
-    #---------------
-
-    alreadyposted= outputchannel.history(after=d,oldest_first=True,limit=None)
-    listalreadyposted= await alreadyposted.flatten()
-    listalreadyposted=list(filter(creationDateCheck,listalreadyposted))
-    print('schedule curation')
-    #print(listcandidates)
-    #print(listalreadyposted)
-    for m1 in listcandidates:
-        flag= True
-        for m2 in listalreadyposted:
-            #print(m1)
-            #print(m2)
-            if m2.embeds:
-                #print(f'm1 != m2:{m1.jump_url}!={m2.embeds[0].description[m2.embeds[0].description.find("(")+1:m2.embeds[0].description.find(")")]}')
-                if m1.jump_url == m2.embeds[0].description[m2.embeds[0].description.find("(")+1:m2.embeds[0].description.find(")")]:
-                    print('esta ya ta')
-                    flag=False
-                    break
-        if flag:
-            await curateaction(m1)
-            print(f'Nice shot bro')
-
-async def startcurating():
-    while True:
-        await curationActive((datetime.datetime.now() - timedelta(days = daystocheck)))
-        await asyncio.sleep(curatorintervals)
-        reactiontrigger= (len(outputchannel.guild.members))/10
 
 
 #---------Events---------------------------------
@@ -440,8 +292,9 @@ async def on_ready():
     global inputchannel
     global outputchannel
     print(f'{bot.user.name} has connected to Discord!')
-    inputchannel=getchanneli('share-your-shot')
-    outputchannel=getchannelo('share-your-shot-bot')#curator-bot
+    inputchannel=getchanneli('input-channels-name')
+    outputchannel=getchannelo('output-channels-name')
+
     reactiontrigger=(len(outputchannel.guild.members))/10
 
     #Lets get the last messages published by the bot in the channel, and run a curationsince command based on that
@@ -451,19 +304,12 @@ async def on_ready():
     async for m in outputchannel.history(limit=10):
         if m.author == bot.user and m.embeds:
             date= m.created_at - timedelta(days = daystocheck)
-            #print(f'datetime.datetime.now() - m.created_at= {datetime.datetime.now()} - {m.created_at}')
-            #print(date)
-            #await curationsincedate([], date)
             await curationActive(date)
             await startcurating() #never stops
             break
     
 
-
-#Si quiero hacer una funcion para retomar desde una fecha, usar esta
-#print(datetime.datetime.now() - datetime.datetime.strptime('2020-07-31 11:31:36','%Y-%m-%d %H:%M:%S'))
-
-#Commands can only be done in the outputchannel
+#Commands can only be detected in the outputchannel
 @bot.check
 async def predicate(ctx):
     return ctx.channel.name==outputchannel.name
@@ -479,9 +325,44 @@ async def on_command_error(ctx, error):
 
 #-------------------------------------------------
 
+#---------------Command functions----------------------------------------------
+
+#reads the messages since a number of days and post the accepted shots that havent been posted yet
+async def curationActive(d):
+
+    #-----------------get listcandidates
+    candidatesupdate= inputchannel.history(after=d,oldest_first=True,limit=None)
+    listcandidates= await candidatesupdate.flatten()
+    listcandidates= list(filter(lambda m: curationlgorithm(m), listcandidates))
+    #---------------
+
+    alreadyposted= outputchannel.history(after=d,oldest_first=True,limit=None)
+    listalreadyposted= await alreadyposted.flatten()
+    listalreadyposted=list(filter(creationDateCheck,listalreadyposted))
+    print('schedule curation')
+
+    for m1 in listcandidates:
+        flag= True
+        for m2 in listalreadyposted:
+
+            if m2.embeds:
+                if m1.jump_url == m2.embeds[0].description[m2.embeds[0].description.find("(")+1:m2.embeds[0].description.find(")")]:
+                    print('esta ya ta')
+                    flag=False
+                    break
+        if flag:
+            await curateaction(m1)
+            print(f'Nice shot bro')
+
+async def startcurating():
+    while True:
+        await curationActive((datetime.datetime.now() - timedelta(days = daystocheck)))
+        await asyncio.sleep(curatorintervals)
+
+        reactiontrigger= (len(outputchannel.guild.members))/10
+#---------------------------------------------------------------------------------
 
 #-----------------Commands-------------------------
-
 class BotActions(commands.Cog):
     """Diferent type of curations the bot can make"""
 
@@ -491,7 +372,7 @@ class BotActions(commands.Cog):
             if curationlgorithmpast(message):
                 await curateactiondawnoftime(message)
                 print(f'Nice shot bro')
-        dbgitupdate()
+        #dbgitupdate()
         print(f'Done curating')
     
     @commands.command(name='startcurating', help='Start activly curating the shots since the number of days specified by the daystocheck value')
@@ -502,100 +383,8 @@ class BotActions(commands.Cog):
     @commands.command(name='curationsince', help='Curate the shots since a given number of days.')
     async def curationsince(self,ctx,d):
         await curationActive((datetime.datetime.now() - timedelta(days = int(d))))
-        """
-        listcandidates= await getlistcandidatesupdate(ctx)
-        alreadyposted= outputchannel.history(after=(datetime.datetime.now() - timedelta(days = int(d))),oldest_first=True,limit=None)
-        listalreadyposted= await alreadyposted.flatten()
-        listalreadyposted=list(filter(creationDateCheck,listalreadyposted))
-        print('curating')
-        #print(listcandidates)
-        #print(listalreadyposted)
-        for m1 in listcandidates:
-            flag= True
-            for m2 in listalreadyposted:
-                #print(m1)
-                #print(m2)
-                if m2.embeds:
-                    #print(f'm1 != m2:{m1.jump_url}!={m2.embeds[0].description[m2.embeds[0].description.find("(")+1:m2.embeds[0].description.find(")")]}')
-                    if m1.jump_url == m2.embeds[0].description[m2.embeds[0].description.find("(")+1:m2.embeds[0].description.find(")")]:
-                        print('esta ya ta')
-                        flag=False
-                        break
-            if flag:
-                await curateaction(ctx,m1)
-                print(f'Nice shot bro')
-        print('Done curating')
-        """
-
-    """
-    @commands.command(name='startcurating', help='Start curating the shots from the past week in the curator\'s output channel')
-    async def startcurating(self,ctx):
-        while True:
-            listcandidates= await getlistcandidatesupdate(ctx)
-
-            alreadyposted= outputchannel.history(after=(datetime.datetime.now() - timedelta(days = daystocheck)),oldest_first=True,limit=None)
-            listalreadyposted= await alreadyposted.flatten()
-            listalreadyposted=list(filter(creationDateCheck,listalreadyposted))
-
-            print('curating')
-
-            #print(listcandidates)
-            #print(listalreadyposted)
-
-            for m1 in listcandidates:
-                flag= True
-                for m2 in listalreadyposted:
-                    #print(m1)
-                    #print(m2)
-                    if m2.embeds:
-                        #print(f'm1 != m2:{m1.jump_url}!={m2.embeds[0].description[m2.embeds[0].description.find("(")+1:m2.embeds[0].description.find(")")]}')
-                        if m1.jump_url == m2.embeds[0].description[m2.embeds[0].description.find("(")+1:m2.embeds[0].description.find(")")]:
-                            print('esta ya ta')
-                            flag=False
-                            break
-                if flag:
-                    await curateaction(ctx,m1)
-                    print(f'Nice shot bro')
-
-
-            await asyncio.sleep(curatorintervals)
-    """
-
-    """
-    @commands.command(name='startcuratingold', help='Start curating the shots from the past week in the curator\'s output channel')
-    async def startcuratingold(self,ctx):
-        while True:
-
-            listcandidates= await getlistcandidates(ctx)
-
-            print('Esperando que reaccionen capturas...')
-            await asyncio.sleep(curatorintervals)
-
-            listcandidatesupdate= await getlistcandidatesupdate(ctx)
-
-            for message in filter(lambda m: candidatescheck(m,listcandidates),listcandidatesupdate):
-                await curateaction(ctx,message)
-                print(f'Nice shot bro')
-    """
-
-    #Ignores if the shot has been posted before
-    """
-    @commands.command(name='curationsince', help='Curate a seated up channel since a specific number of days.')
-    async def curationsince(self,ctx,d):
-        async for message in inputchannel.history(after=(datetime.datetime.now() - timedelta(days = int(d))),oldest_first=True,limit=None):
-            if curationlgorithmpast(message):
-                await curateaction(ctx,message)
-                print(f'Nice shot bro')
-        print(f'Done curating')
-    """
 
 bot.add_cog(BotActions())
-
-
-
-        
-
-
 
 
 
@@ -621,15 +410,6 @@ class ConfigCommands(commands.Cog):
     async def setdaystocheck(self,ctx, n):
         global daystocheck
         daystocheck= int(n)
-
-    #set
-    """
-    @commands.command(name='setreactiontrigger', help='Define the amount of reactions necessary to accept the message.')
-    async def setreactiontrigger(self,ctx, n):
-        global reactiontrigger 
-        reactiontrigger = int(n)
-    """
-    
 
 bot.add_cog(ConfigCommands())
 
