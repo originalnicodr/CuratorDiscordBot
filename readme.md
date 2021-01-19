@@ -85,4 +85,10 @@ The .json file generated, modified and pushed by the bot consists of elements of
  "date": string}
 ```
 
-As a sidenote, the date is using the format `Year`-`Month`-`Day`T`Hour`:`Minute`:`Second`.`Millisecond`.
+As a side note, the date is using the format `Year`-`Month`-`Day`T`Hour`:`Minute`:`Second`.`Millisecond`.
+
+## Final notes
+
+I made this bot in a free week that I had. Unfortunately I don't have time at the moment to learn front-end programming to make a website showing the shots. Hopefully someone will make one and I will be sure to include a link here whenever that happens.
+ 
+I apologize that I didn't write the bot so everyone can use the one I am hosting. Hopefully the code and explanation here are enough for setting it up yourself, and if not I hope at least you learned something from it. I know I did.
