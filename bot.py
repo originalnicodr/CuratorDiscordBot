@@ -23,9 +23,15 @@ import operator
 
 from tinydb import TinyDB, Query
 
+from git import Repo, Git
+
+
+
+
 
 load_dotenv()
 TOKEN = os.getenv('DISCORD_TOKEN')
+GIT_TOKEN= os.getenv('GIT_TOKEN')
 
 # 2
 bot = commands.Bot(command_prefix='!')
@@ -55,7 +61,7 @@ def getchanneli(channelname):#not the best method to do this tho
 #------------Constants-----------------
 
 #For basicCuration
-#Updated in the startcurating() loop, comment that line if you dont want this value to get modified
+#Updated in the startcurating() loop and on the on_ready() event, comment those lines if you dont want this value to get modified
 reactiontrigger = 20
 
 curatorintervals= 5 #time bwtween reaction checks
@@ -72,9 +78,9 @@ curationlgorithm= lambda m :  basicCuration(m)
 # completeCuration(m)
 
 
-#database for using the shots in a website
-db = TinyDB('websiterepo/shotsdb.json')
 
+#Users that dont want to be on the site, specified by their id (author.id)
+ignoredusers=[]
 
 
 #initial values are in the on_ready() event
@@ -83,6 +89,28 @@ outputchannel=None
 
 #---------------------------------------
 
+#-----------Github integration --------------------------
+
+
+websiterepourl = f'https://originalnicodrgitbot:{GIT_TOKEN}@github.com/originalnicodrgitbot/test-git-python.git'
+websiterepofolder = 'websiterepo'
+
+repo = Repo.clone_from(websiterepourl, websiterepofolder)
+assert repo.__class__ is Repo     # clone an existing repository
+
+#database for using the shots in a website
+db = TinyDB('websiterepo/shotsdb.json')
+
+def dbgitupdate():
+    global repo
+    repo.git.add('shotsdb.json')
+    repo.index.commit("DB update")
+
+    repo = Repo(websiterepofolder)
+    origin = repo.remote(name="origin")
+    origin.push()
+
+#-------------------------------------------------------------
 
 #-------Curate algorithms-----------
 
@@ -221,20 +249,31 @@ async def postembed(message,gamename):
 
 
 async def writedbdawnoftime(message,gamename):
-    db.insert({'gameName': gamename, 'shot': message.attachments[0].url, 'author': message.author.name, 'authorsAvatar': str(message.author.avatar_url), 'date': message.created_at.strftime('%Y-%m-%dT%H:%M:%S.%f')})
+    if message.author.id in ignoredusers:
+        return
+    db.insert({'gameName': gamename, 'shotUrl': message.attachments[0].url, 'author': message.author.name, 'authorsAvatarUrl': str(message.author.avatar_url), 'date': message.created_at.strftime('%Y-%m-%dT%H:%M:%S.%f')})
+    #Will commit the update at the end of dawnoftimecuration (maybe not the best?)
 
 #instead of using the date of the message it uses the actual time, that way if you sort by new, the new shots would always be on top, instead of getting mixed
 async def writedb(message,gamename):
-    db.insert({'gameName': gamename, 'shot': message.attachments[0].url, 'author': message.author.name, 'authorsAvatar': str(message.author.avatar_url), 'date': datetime.datetime.now().strftime('%Y-%m-%dT%H:%M:%S.%f')})
+    if message.author.id in ignoredusers:
+        return
+    db.insert({'gameName': gamename, 'shotUrl': message.attachments[0].url, 'author': message.author.name, 'authorsAvatarUrl': str(message.author.avatar_url), 'date': datetime.datetime.now().strftime('%Y-%m-%dT%H:%M:%S.%f')})
+    dbgitupdate()
 
 async def curateaction(message):
+    #print(f'author.id: {message.author.id}')
     gamename= await getgamename(message)
+    if len(gamename)>255:
+        gamename=''
     await writedb(message,gamename)
     await postembed(message,gamename)
 
 
 async def curateactiondawnoftime(message):
     gamename= await getgamename(message)
+    if len(gamename)>255:
+        gamename=''
     await postembed(message,gamename)
     await writedbdawnoftime(message,gamename)
 
@@ -264,22 +303,23 @@ async def getgamename(message):#checks five messages before and after the messag
     listmessages= list(listmessages)
     #print(listmessages)
 
-    listmessages= list(filter(lambda m: (m.author==message.author), listmessages))#m.content tenia antes, pero no estaria piola por que a veces ponen el nombre del juego en un mensaje a parte
+    listmessages= list(filter(lambda m: len(m.content)<255 and m.content and (m.author==message.author), listmessages))#m.content tenia antes, pero no estaria piola por que a veces ponen el nombre del juego en un mensaje a parte
 
 
     if (not listmessages): #len(listmessages)>256: #eso estaba al pedo creo
         print('primer if')
         return ''
 
-    placeholdermessage= listmessages[0]
+    placeholdermessage= listmessages[0]#it never fails because of the previous if
     #print(listmessages)
     #print(f'tiempo del mensaje principal:{message.created_at}')
     for m in listmessages:
+        #si tira nombres mal sacar el m.content del filter de listmessages y ponerlo en el if de aca abajo
         if  timedifabs(placeholdermessage.created_at,message.created_at) > timedifabs(m.created_at,message.created_at):#no necesito hacer m!=message por que message no tiene content y se filtro antes
             placeholdermessage=m
     
     #cant be used in the embed
-    if len(placeholdermessage.content)>256:
+    if len(placeholdermessage.content)>255:
         print('segundo if')
         return ''
 
@@ -293,6 +333,7 @@ def candidatescheck(m,c):
             return True
     return False
 
+"""
 async def getlistcandidates():
     global inputchannel
     candidates= inputchannel.history(after=(datetime.datetime.now() - timedelta(days = daystocheck)),oldest_first=True,limit=None)
@@ -303,9 +344,9 @@ async def getlistcandidates():
     #print(listcandidates)
 
     return listcandidates
+"""
 
-
-
+"""
 async def getlistcandidatesupdate():
     candidatesupdate= inputchannel.history(after=(datetime.datetime.now() - timedelta(days = daystocheck)),oldest_first=True,limit=None)
     listcandidatesupdate= await candidatesupdate.flatten()
@@ -315,6 +356,7 @@ async def getlistcandidatesupdate():
     #print(listcandidatesupdate)
 
     return listcandidatesupdate
+"""
 
 def creationDateCheck(message):
     if message.embeds:
@@ -354,12 +396,16 @@ async def curationsincedate(ctx,d):
 
 
 
-
-
-
 #reads the messages since a number of days and post the accepted shots that havent been posted yet
 async def curationActive(d):#d viejo= (datetime.datetime.now() - timedelta(days = d))
-    listcandidates= await getlistcandidatesupdate()
+
+    #-----------------get listcandidates
+    candidatesupdate= inputchannel.history(after=d,oldest_first=True,limit=None)
+    listcandidates= await candidatesupdate.flatten()
+    #print(f'listcandidatesupdate.len= {len(listcandidates)}')
+    listcandidates= list(filter(lambda m: curationlgorithm(m), listcandidates))
+    #---------------
+
     alreadyposted= outputchannel.history(after=d,oldest_first=True,limit=None)
     listalreadyposted= await alreadyposted.flatten()
     listalreadyposted=list(filter(creationDateCheck,listalreadyposted))
@@ -396,9 +442,12 @@ async def on_ready():
     print(f'{bot.user.name} has connected to Discord!')
     inputchannel=getchanneli('share-your-shot')
     outputchannel=getchannelo('share-your-shot-bot')#curator-bot
+    reactiontrigger=(len(outputchannel.guild.members))/10
 
     #Lets get the last messages published by the bot in the channel, and run a curationsince command based on that
     #ATTENTION: If for some reason the bot cant find one of his embbed messages it wont start, so make sure to run the command !dawnoftimecuration before
+    #await debugtempcuration(180)
+
     async for m in outputchannel.history(limit=10):
         if m.author == bot.user and m.embeds:
             date= m.created_at - timedelta(days = daystocheck)
@@ -408,7 +457,6 @@ async def on_ready():
             await curationActive(date)
             await startcurating() #never stops
             break
-
     
 
 
@@ -443,6 +491,7 @@ class BotActions(commands.Cog):
             if curationlgorithmpast(message):
                 await curateactiondawnoftime(message)
                 print(f'Nice shot bro')
+        dbgitupdate()
         print(f'Done curating')
     
     @commands.command(name='startcurating', help='Start activly curating the shots since the number of days specified by the daystocheck value')
