@@ -1,7 +1,7 @@
 <p align="center"><img src="https://user-images.githubusercontent.com/24371572/104768884-1fa5f400-574d-11eb-93c4-10b24f8ce06e.jpg">
  
 # <p align="center">CuratorBot</p>
- 
+ <p align="center">
   <a href="https://github.com/Rapptz/discord.py/">
      <img src="https://img.shields.io/badge/discordpy-1.6.0-blue.svg" alt="discord.py"></a>
   <a href="https://github.com/msiemens/tinydb">
