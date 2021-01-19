@@ -12,7 +12,6 @@ from datetime import timedelta
 
 import asyncio
 
-from aiostream import stream, pipe
 import time
 
 import traceback
@@ -69,7 +68,7 @@ outputchannel=None
 #-----------Github integration --------------------------
 
 
-websiterepourl = f'https://youtgihubuserhere:{GIT_TOKEN}@github.com/owneroftherepo/repo-name.git'
+websiterepourl = f'https://originalnicodrgitbot:{GIT_TOKEN}@github.com/originalnicodrgitbot/test-git-python.git'
 websiterepofolder = 'websiterepo'
 
 repo = Repo.clone_from(websiterepourl, websiterepofolder)
@@ -121,7 +120,6 @@ def historicalCuration(message):
 
             #linearinterpolation
             trigger = (valueovertime * maxv) + ((1-valueovertime) * minv)
-            print(f'(valueovertime * maxv) + ((1-valueovertime) * minv)= ({valueovertime} * {maxv}) + ((1-{valueovertime}) * {minv})')
             print(f'Trigger value={trigger}')
 
             reactions= max(listNumberReactions)
@@ -271,7 +269,8 @@ def getchannelo(channelname):#not the best method to do this tho
     #for g in list(discord.Client.guilds):
 
     for g in bot.guilds:
-        if g.name== 'InputServersName':
+        if g.name== 'Output server':
+        #if g.name== 'FRAMED - Screenshot Community':
             return discord.utils.get(g.channels, name=channelname)
 
 def getchanneli(channelname):#not the best method to do this tho
@@ -279,7 +278,7 @@ def getchanneli(channelname):#not the best method to do this tho
     #for g in list(discord.Client.guilds):
 
     for g in bot.guilds:
-        if g.name== 'OutputServersName':
+        if g.name== 'Input server':
             return discord.utils.get(g.channels, name=channelname)
 #-------------------------------------------------------------------------------------------------
 
@@ -292,8 +291,8 @@ async def on_ready():
     global inputchannel
     global outputchannel
     print(f'{bot.user.name} has connected to Discord!')
-    inputchannel=getchanneli('input-channels-name')
-    outputchannel=getchannelo('output-channels-name')
+    inputchannel=getchanneli('inputschannelname')
+    outputchannel=getchannelo('outputschannelname')
 
     reactiontrigger=(len(outputchannel.guild.members))/10
 
@@ -347,7 +346,7 @@ async def curationActive(d):
 
             if m2.embeds:
                 if m1.jump_url == m2.embeds[0].description[m2.embeds[0].description.find("(")+1:m2.embeds[0].description.find(")")]:
-                    print('esta ya ta')
+                    print('Already posted')
                     flag=False
                     break
         if flag:
@@ -372,7 +371,7 @@ class BotActions(commands.Cog):
             if curationlgorithmpast(message):
                 await curateactiondawnoftime(message)
                 print(f'Nice shot bro')
-        #dbgitupdate()
+        dbgitupdate()
         print(f'Done curating')
     
     @commands.command(name='startcurating', help='Start activly curating the shots since the number of days specified by the daystocheck value')
