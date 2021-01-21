@@ -23,6 +23,14 @@ import operator
 from tinydb import TinyDB
 
 from git import Repo
+
+
+
+
+from PIL import Image
+#import urllib3
+import requests
+
 #-----------------------------------------------
 
 #--------------------Enviroment variables--------
@@ -68,7 +76,7 @@ outputchannel=None
 #-----------Github integration --------------------------
 
 
-websiterepourl = f'https://originalnicodrgitbot:{GIT_TOKEN}@github.com/originalnicodrgitbot/test-git-python.git'
+websiterepourl = f'https://user:{GIT_TOKEN}@github.com/repo-owner/repo.git'
 websiterepofolder = 'websiterepo'
 
 repo = Repo.clone_from(websiterepourl, websiterepofolder)
@@ -87,6 +95,36 @@ def dbgitupdate():
     origin.push()
 
 #-------------------------------------------------------------
+
+#-----------Thumbnail creation--------------------------
+sizelimit= 300 #discord standar
+
+#initial value is set in the on_ready() event
+thumbnailchannel=None
+
+
+async def createthumbnail(message):
+    response = requests.get(message.attachments[0].url, stream=True)
+    response.raw.decode_content = True
+    shot=Image.open(response.raw)
+
+    h=message.attachments[0].height
+    w=message.attachments[0].width
+    ar=w/h
+    ht= 300 if h>w else int(ar*300)
+    wt= 300 if w>h else int((1/ar)*300)
+
+    #filter algorithms
+    #Image.NEAREST, Image.BILINEAR, Image.BICUBIC, Image.ANTIALIAS
+    
+    shot=shot.resize((ht,wt),Image.BICUBIC)
+    shot=shot.convert('RGB')#to save it in jpg
+    shot.save('thumbnailtemp.jpg',quality=95)
+    thumbnail= await thumbnailchannel.send(file=discord.File('thumbnailtemp.jpg'))
+    return thumbnail.attachments[0].url
+
+#--------------------------------------------------------
+
 
 #-------Curation algorithms-----------
 
@@ -193,13 +231,16 @@ async def postembed(message,gamename):
 async def writedbdawnoftime(message,gamename):
     if message.author.id in ignoredusers:
         return
-    db.insert({'gameName': gamename, 'shotUrl': message.attachments[0].url, 'author': message.author.name, 'authorsAvatarUrl': str(message.author.avatar_url), 'date': message.created_at.strftime('%Y-%m-%dT%H:%M:%S.%f')})
+    thumbnail= await createthumbnail(message) #link of the thumbnail
+    db.insert({'gameName': gamename, 'shotUrl': message.attachments[0].url, 'height': message.attachments[0].height, 'width': message.attachments[0].width, 'thumbnailUrl': thumbnail ,'author': message.author.name, 'authorsAvatarUrl': str(message.author.avatar_url), 'date': message.created_at.strftime('%Y-%m-%dT%H:%M:%S.%f'), 'score': max(map(lambda m: m.count,message.reactions))})
+    
 
 #instead of using the date of the message it uses the actual time, that way if you sort by new in the future website, the new shots would always be on top, instead of getting mixed
 async def writedb(message,gamename):
     if message.author.id in ignoredusers:
         return
-    db.insert({'gameName': gamename, 'shotUrl': message.attachments[0].url, 'author': message.author.name, 'authorsAvatarUrl': str(message.author.avatar_url), 'date': datetime.datetime.now().strftime('%Y-%m-%dT%H:%M:%S.%f')})
+    thumbnail= await createthumbnail(message) #link of the thumbnail
+    db.insert({'gameName': gamename, 'shotUrl': message.attachments[0].url, 'height': message.attachments[0].height, 'width': message.attachments[0].width, 'thumbnailUrl': thumbnail ,'author': message.author.name, 'authorsAvatarUrl': str(message.author.avatar_url), 'date': datetime.datetime.now().strftime('%Y-%m-%dT%H:%M:%S.%f'), 'score': max(map(lambda m: m.count,message.reactions))})
     dbgitupdate()
 
 async def curateaction(message):
@@ -213,6 +254,31 @@ async def curateactiondawnoftime(message):
     await postembed(message,gamename)
     await writedbdawnoftime(message,gamename)
 
+    #----------------For forcing post actions-------------------
+
+async def postembedexternal(message,gamename):
+    embed=discord.Embed(title=gamename,description=f"[Message link]({message.jump_url})")
+    embed.set_image(url=message.content)
+    embed.set_author(name= f'Shot by {message.author}', icon_url=message.author.avatar_url)
+    #embed.set_author(name= f'Shot by {message.author}')
+    #embed.set_thumbnail(url=message.author.avatar_url)
+    embed.set_footer(text=f"{message.created_at}")
+
+    await outputchannel.send(embed=embed)
+
+#external shots wont be added to the page
+"""
+async def writedbexternal(message,gamename):
+    if message.author.id in ignoredusers:
+        return
+    db.insert({'gameName': gamename, 'shotUrl': message.content, 'author': message.author.name, 'authorsAvatarUrl': str(message.author.avatar_url), 'date': message.created_at.strftime('%Y-%m-%dT%H:%M:%S.%f'), 'score': max(map(lambda m: m.count,message.reactions))})
+"""
+
+async def curateactionexternal(message):
+    #await writedbexternal(message,'')
+    await postembedexternal(message,'')
+
+    #--------------------------------------------------------
 
 #----------------------------------------------------
 
@@ -232,7 +298,7 @@ async def getgamename(message):
 
     print('Buscando nombre del juego')
 
-    messages=  inputchannel.history(around=message.created_at,oldest_first=True, limit=10)
+    messages=  inputchannel.history(around=message.created_at,oldest_first=True, limit=12)
     listmessages= await messages.flatten()
     listmessages= list(listmessages)
 
@@ -269,7 +335,7 @@ def getchannelo(channelname):#not the best method to do this tho
     #for g in list(discord.Client.guilds):
 
     for g in bot.guilds:
-        if g.name== 'Output server':
+        if g.name== 'BotTest':
         #if g.name== 'FRAMED - Screenshot Community':
             return discord.utils.get(g.channels, name=channelname)
 
@@ -278,7 +344,8 @@ def getchanneli(channelname):#not the best method to do this tho
     #for g in list(discord.Client.guilds):
 
     for g in bot.guilds:
-        if g.name== 'Input server':
+        #if g.name== 'BotTest':
+        if g.name== 'FRAMED - Screenshot Community':
             return discord.utils.get(g.channels, name=channelname)
 #-------------------------------------------------------------------------------------------------
 
@@ -290,9 +357,11 @@ def getchanneli(channelname):#not the best method to do this tho
 async def on_ready():
     global inputchannel
     global outputchannel
+    global thumbnailchannel
     print(f'{bot.user.name} has connected to Discord!')
-    inputchannel=getchanneli('inputschannelname')
-    outputchannel=getchannelo('outputschannelname')
+    inputchannel=getchanneli('share-your-shot')
+    outputchannel=getchannelo('share-your-shot-bot')
+    thumbnailchannel=getchannelo('thumbnail-dump')
 
     reactiontrigger=(len(outputchannel.guild.members))/10
 
@@ -307,6 +376,17 @@ async def on_ready():
             await startcurating() #never stops
             break
     
+"""
+@bot.event
+async def on_guild_channel_pins_update(channel, last_pin):
+    if inputchannel.name==channel.name:
+        pins= await channel.pins()
+        #print(f'pins: {pins}')
+        if pins and pins[-1].attachments:
+            print(f'Last messages pinned: {pins[-1]}')
+            curateaction(pins[-1])
+            #dbgitupdate()
+"""
 
 #Commands can only be detected in the outputchannel
 @bot.check
@@ -321,7 +401,6 @@ async def on_command_error(ctx, error):
     else:
         print('Ignoring exception in command {}:'.format(ctx.command), file=sys.stderr)
         traceback.print_exception(type(error), error, error.__traceback__, file=sys.stderr)
-
 #-------------------------------------------------
 
 #---------------Command functions----------------------------------------------
@@ -359,6 +438,7 @@ async def startcurating():
         await asyncio.sleep(curatorintervals)
 
         reactiontrigger= (len(outputchannel.guild.members))/10
+        print(f'Current trigger: {reactiontrigger}')
 #---------------------------------------------------------------------------------
 
 #-----------------Commands-------------------------
@@ -382,6 +462,20 @@ class BotActions(commands.Cog):
     @commands.command(name='curationsince', help='Curate the shots since a given number of days.')
     async def curationsince(self,ctx,d):
         await curationActive((datetime.datetime.now() - timedelta(days = int(d))))
+
+
+    #ATTENTION: an id from a message that doesnt belongs to the inputchannel will crash the bot
+    @commands.command(name='forcepost', help='Force the bot to curate a message regardless of the amount of reactions. ATTENTION: an id from a message that doesnt belongs to the inputchannel will crash the bot. Make sure to only force posts with an image or ONLY with an external image.url')
+    async def forcepost(self,ctx,id):
+        message= await inputchannel.fetch_message(id)
+        if message.attachments:
+            await curateactiondawnoftime(message) #so it uses the date of the screenshot
+            print(f'Nice shot bro')
+            dbgitupdate()
+        else:
+            await curateactionexternal(message)
+            print(f'Nice shot bro')
+            dbgitupdate()
 
 bot.add_cog(BotActions())
 
