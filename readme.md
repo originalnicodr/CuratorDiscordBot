@@ -8,6 +8,8 @@
      <img src="https://img.shields.io/badge/tinyDB-4.3.0-blue.svg" alt="discord.py"></a>
   <a href="https://github.com/gitpython-developers/GitPython">
      <img src="https://img.shields.io/badge/GitPython-3.1.12-blue.svg" alt="discord.py"></a>
+  <a href="https://github.com/python-pillow/Pillow">
+     <img src="https://img.shields.io/badge/Pillow-8.1.0-blue.svg" alt="discord.py"></a>
  
 ## About
  
@@ -17,7 +19,9 @@ Since I made this for a server I am in, it has a lot of assumptions, like search
  
 <p align="center"><img src="https://user-images.githubusercontent.com/24371572/104781820-eb88fe00-5761-11eb-91d0-6daf4448ebad.png">
  
-The bot also puts every curated shot link in a .json file a push it to a github repo, which would act, so the file can be used as a database for a website showing the screenshots and the bot as an updater for said database.
+The bot also puts every curated shot link in a .json file and push it to a github repo, so the file can be used as a database for a website showing the screenshots and the bot as an updater for said database.
+
+The bot also uploads a resized version of the screenshot to use as a thumbnail for the website because I dont want to pay a host for anything (yes I am that cheap, I am sorry).
  
 ## How does it work
  
@@ -44,7 +48,7 @@ DISCORD_TOKEN=yourDiscordBotToken
 GIT_TOKEN=githubPersonalAccessTokens
 ```
  
-Later you will have to change the input channel (where the bot looks up for messages) and the output channel (where the bot will send the accepted messages). You can change these values on runtime or change the initial values from the code.
+Later you will have to change the input channel (where the bot looks up for messages), the output channel (where the bot will send the accepted messages) and the thumbnail channel (where the bot will drop the thumbnails it makes).
  
 You can change the curation algorithms and their values from the code. The info is in the **Constants** section and at the start of each algorithm function.
  
@@ -63,7 +67,8 @@ I made this bot for being able to curate retroactively, so the correct way to us
   - **!curationsince**:       Curate the shots that are less than a certain number of days old.
   - **!dawnoftimecuration**:  Curate a seated up channel since it was created.
   - **!startcurating**: Start actively curating the shots since the number of days specified by the daystocheck value.
- 
+   - **!forcepost MESSAGE_ID**: Force the bot to post a message regardless of the amount of reactions. **ATTENTION**: a MESSAGE_ID that doesnt belongs to the inputchannel will crash the bot. Make sure to only force posts with an image in an attachment (aka uploading it to discord) or text with ONLY an external image.url.
+
   - **!setcuratorintervals**: Define the time interval (in seconds) between the channel reactions check.
   - **!setdaystocheck**:      Define the maximum age of the messages to activly check.
   - **!setinputchannel**:     Define from what channel will the bot curate.
@@ -80,15 +85,24 @@ The .json file generated, modified and pushed by the bot consists of elements of
 ```
 {"gameName": string,
  "shotUrl": string,
+ "height": int,
+ "width": int,
+ "thumbnailUrl": string 
  "author": string,
  "authorsAvatarUrl": string,
- "date": string}
+ "date": string,
+ "score": int}
 ```
 
-As a side note, the date is using the format `Year`-`Month`-`Day`T`Hour`:`Minute`:`Second`.`Millisecond`.
+The "score" value represents the amout of "points" the shot got before being picked up by the bot. In the way is seted up its the amount of reactions of the most reacted emoji.
+The "date" is using the format `Year`-`Month`-`Day`T`Hour`:`Minute`:`Second`.`Millisecond`.
+
+## To do
+- The score value isnt updated after the shots gets picked up, I could update it with every check pass the bot makes.
 
 ## Final notes
 
 I made this bot in a free week that I had. Unfortunately I don't have time at the moment to learn front-end programming to make a website showing the shots. Hopefully someone will make one and I will be sure to include a link here whenever that happens.
  
 I apologize that I didn't write the bot so everyone can use the one I am hosting. Hopefully the code and explanation here are enough for setting it up yourself, and if not I hope at least you learned something from it. I know I did.
+
