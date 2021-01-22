@@ -7,21 +7,21 @@
   <a href="https://github.com/msiemens/tinydb">
      <img src="https://img.shields.io/badge/tinyDB-4.3.0-blue.svg" alt="discord.py"></a>
   <a href="https://github.com/gitpython-developers/GitPython">
-     <img src="https://img.shields.io/badge/GitPython-3.1.12-blue.svg" alt="discord.py"></a>
+     <img src="https://img.shields.io/badge/gitPython-3.1.12-blue.svg" alt="discord.py"></a>
   <a href="https://github.com/python-pillow/Pillow">
-     <img src="https://img.shields.io/badge/Pillow-8.1.0-blue.svg" alt="discord.py"></a>
+     <img src="https://img.shields.io/badge/pillow-8.1.0-blue.svg" alt="discord.py"></a>
+  <a href="https://github.com/psf/requests">
+     <img src="https://img.shields.io/badge/requests-2.22.0-blue.svg" alt="discord.py"></a>
  
 ## About
  
-CuratorBot is a bot dedicated to selecting the best screenshots from a channel and sending them to another channel.
+CuratorBot is a bot dedicated to selecting the best screenshots from a channel and sending them to another channel. In addition, it uses discord as a host for a website and exports a .json database to a github repo (I don't like to pay for good hosting, sorry).
  
 Since I made this for a server I am in, it has a lot of assumptions, like searching for a message with text around the screenshot message if this one has no text specifying the game, so I apologise for it.
  
 <p align="center"><img src="https://user-images.githubusercontent.com/24371572/104781820-eb88fe00-5761-11eb-91d0-6daf4448ebad.png">
  
-The bot also puts every curated shot link in a .json file and pushes it to a github repo, so the file can be used as a database for a website showing the screenshots and the bot as an updater for said database.
- 
-The bot also uploads a resized version of the screenshot to use as a thumbnail for the website because I don't want to pay a host for anything (yes I am that cheap, I am sorry).
+The bot puts every curated shot link in a .json file, creates a thumbnail which is also uploaded to discord and includes it in said .json file and pushes it to a github repo, so the file can be used as a database for a website showing the screenshots and the bot as an updater for said database.
  
 ## How does it work
  
@@ -54,7 +54,9 @@ You can change the curation algorithms and their values from the code. The info 
  
 Keep in mind that you can also discriminate between different servers for the input and output channels in the **getchannel** functions.
  
-To change the repo where the bot will push change the link in the **Github integration**
+To change the repo where the bot will push change the link in the **Github integration** section.
+ 
+To change the the thumbnails options (extension of the fil, size, filter used in the resizing, etc.) check the **Thumbnail creation** section.
  
 ## Usage
  
@@ -91,8 +93,11 @@ The .json file generated, modified and pushed by the bot consists of elements of
  "author": string,
  "authorsAvatarUrl": string,
  "date": string,
- "score": int}
+ "score": int,
+ "ID": int,
+ "iteratorID": int}
 ```
+ 
  
 The "score" value represents the amount of "points" the shot got before being picked up by the bot. The way is set up is the amount of reactions of the most reacted emoji.
 The "date" is using the format `Year`-`Month`-`Day`T`Hour`:`Minute`:`Second`.`Millisecond`.
@@ -102,6 +107,6 @@ The "date" is using the format `Year`-`Month`-`Day`T`Hour`:`Minute`:`Second`.`Mi
  
 ## Final notes
  
-I made this bot in a free week that I had. Unfortunately I don't have time at the moment to learn front-end programming to make a website showing the shots. Hopefully someone will make one and I will be sure to include a link here whenever that happens.
+I made this bot in a free week that I had and it kinda grew up from there. Unfortunately I don't have time at the moment to learn front-end programming to make a website showing the shots. Hopefully someone will make one and I will be sure to include a link here whenever that happens.
  
 I apologize that I didn't write the bot so everyone can use the one I am hosting. Hopefully the code and explanation here are enough for setting it up yourself, and if not I hope at least you learned something from it. I know I did.
