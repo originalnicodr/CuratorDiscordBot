@@ -27,8 +27,7 @@ from git import Repo
 
 
 
-from PIL import Image
-#import urllib3
+from PIL import Image, ImageFilter
 import requests
 
 #-----------------------------------------------
@@ -46,7 +45,7 @@ bot = commands.Bot(command_prefix='!')
 
 #For basicCuration
 #Updated in the startcurating() loop and on the on_ready() event, comment those lines if you dont want this value to get modified
-reactiontrigger = 20
+reactiontrigger = 25
 
 curatorintervals= 5 #time bwtween reaction checks
 daystocheck=7#the maximun age of the messages to check
@@ -76,7 +75,7 @@ outputchannel=None
 #-----------Github integration --------------------------
 
 
-websiterepourl = f'https://user:{GIT_TOKEN}@github.com/repo-owner/repo.git'
+websiterepourl = f'https://originalnicodrgitbot:{GIT_TOKEN}@github.com/originalnicodrgitbot/test-git-python.git'
 websiterepofolder = 'websiterepo'
 
 repo = Repo.clone_from(websiterepourl, websiterepofolder)
@@ -111,14 +110,25 @@ async def createthumbnail(message):
     h=message.attachments[0].height
     w=message.attachments[0].width
     ar=w/h
-    ht= 300 if h>w else int(ar*300)
-    wt= 300 if w>h else int((1/ar)*300)
 
+    #Discord method
+
+    ht= sizelimit if h>w else int(ar*sizelimit)
+    wt= sizelimit if w>h else int((1/ar)*sizelimit)
+
+    """
+    #Flickr method
+    ht= sizelimit
+    wt= int((1/ar)*sizelimit)
+    """
+
+    shot=shot.convert('RGB')#to save it in jpg
+    shot=shot.filter(ImageFilter.SHARPEN)
+    
     #filter algorithms
     #Image.NEAREST, Image.BILINEAR, Image.BICUBIC, Image.ANTIALIAS
-    
     shot=shot.resize((ht,wt),Image.BICUBIC)
-    shot=shot.convert('RGB')#to save it in jpg
+    
     shot.save('thumbnailtemp.jpg',quality=95)
     thumbnail= await thumbnailchannel.send(file=discord.File('thumbnailtemp.jpg'))
     return thumbnail.attachments[0].url
@@ -232,7 +242,8 @@ async def writedbdawnoftime(message,gamename):
     if message.author.id in ignoredusers:
         return
     thumbnail= await createthumbnail(message) #link of the thumbnail
-    db.insert({'gameName': gamename, 'shotUrl': message.attachments[0].url, 'height': message.attachments[0].height, 'width': message.attachments[0].width, 'thumbnailUrl': thumbnail ,'author': message.author.name, 'authorsAvatarUrl': str(message.author.avatar_url), 'date': message.created_at.strftime('%Y-%m-%dT%H:%M:%S.%f'), 'score': max(map(lambda m: m.count,message.reactions))})
+    elementid=len(db)+1
+    db.insert({'gameName': gamename, 'shotUrl': message.attachments[0].url, 'height': message.attachments[0].height, 'width': message.attachments[0].width, 'thumbnailUrl': thumbnail ,'author': message.author.name, 'authorsAvatarUrl': str(message.author.avatar_url), 'date': message.created_at.strftime('%Y-%m-%dT%H:%M:%S.%f'), 'score': max(map(lambda m: m.count,message.reactions)), 'ID': elementid, 'iteratorID': int(message.created_at.timestamp())})
     
 
 #instead of using the date of the message it uses the actual time, that way if you sort by new in the future website, the new shots would always be on top, instead of getting mixed
@@ -240,7 +251,8 @@ async def writedb(message,gamename):
     if message.author.id in ignoredusers:
         return
     thumbnail= await createthumbnail(message) #link of the thumbnail
-    db.insert({'gameName': gamename, 'shotUrl': message.attachments[0].url, 'height': message.attachments[0].height, 'width': message.attachments[0].width, 'thumbnailUrl': thumbnail ,'author': message.author.name, 'authorsAvatarUrl': str(message.author.avatar_url), 'date': datetime.datetime.now().strftime('%Y-%m-%dT%H:%M:%S.%f'), 'score': max(map(lambda m: m.count,message.reactions))})
+    elementid=len(db)+1
+    db.insert({'gameName': gamename, 'shotUrl': message.attachments[0].url, 'height': message.attachments[0].height, 'width': message.attachments[0].width, 'thumbnailUrl': thumbnail ,'author': message.author.name, 'authorsAvatarUrl': str(message.author.avatar_url), 'date': datetime.datetime.now().strftime('%Y-%m-%dT%H:%M:%S.%f'), 'score': max(map(lambda m: m.count,message.reactions)), 'ID': elementid, 'iteratorID': int(datetime.datetime.now().timestamp())})
     dbgitupdate()
 
 async def curateaction(message):
@@ -363,7 +375,7 @@ async def on_ready():
     outputchannel=getchannelo('share-your-shot-bot')
     thumbnailchannel=getchannelo('thumbnail-dump')
 
-    reactiontrigger=(len(outputchannel.guild.members))/10
+    #reactiontrigger=(len(outputchannel.guild.members))/10
 
     #Lets get the last messages published by the bot in the channel, and run a curationsince command based on that
     #ATTENTION: If for some reason the bot cant find one of his embbed messages it wont start, so make sure to run the command !dawnoftimecuration before
@@ -437,7 +449,7 @@ async def startcurating():
         await curationActive((datetime.datetime.now() - timedelta(days = daystocheck)))
         await asyncio.sleep(curatorintervals)
 
-        reactiontrigger= (len(outputchannel.guild.members))/10
+        #reactiontrigger= (len(outputchannel.guild.members))/10
         print(f'Current trigger: {reactiontrigger}')
 #---------------------------------------------------------------------------------
 
@@ -475,7 +487,6 @@ class BotActions(commands.Cog):
         else:
             await curateactionexternal(message)
             print(f'Nice shot bro')
-            dbgitupdate()
 
 bot.add_cog(BotActions())
 
