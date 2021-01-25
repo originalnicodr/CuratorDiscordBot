@@ -488,7 +488,7 @@ class BotActions(commands.Cog):
     async def forcepost(self,ctx,id):
         message= await inputchannel.fetch_message(id)
         if message.attachments:
-            await curateactiondawnoftime(message) #so it uses the date of the screenshot
+            await curateaction(message) #so it uses the date of the screenshot
             print(f'Nice shot bro')
             dbgitupdate()
         else:
