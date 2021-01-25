@@ -20,7 +20,7 @@ import sys
 import functools
 import operator
 
-from tinydb import TinyDB
+from tinydb import TinyDB, Query
 
 from git import Repo
 
@@ -75,7 +75,7 @@ outputchannel=None
 #-----------Github integration --------------------------
 
 
-websiterepourl = f'https://originalnicodrgitbot:{GIT_TOKEN}@github.com/originalnicodrgitbot/test-git-python.git'
+websiterepourl = f'https://githubuser:{GIT_TOKEN}@github.com/repo-owner/repo.git'
 websiterepofolder = 'websiterepo'
 
 repo = Repo.clone_from(websiterepourl, websiterepofolder)
@@ -93,10 +93,14 @@ def dbgitupdate():
     origin = repo.remote(name="origin")
     origin.push()
 
+def dbreactionsupdate(message):
+    updatedscore= max(map(lambda m: m.count,message.reactions))#the list shouldnt be empty
+    db.update({'score': updatedscore}, Query().shotUrl == message.attachments[0].url)
+
 #-------------------------------------------------------------
 
 #-----------Thumbnail creation--------------------------
-sizelimit= 300 #discord standar
+sizelimit= 400 #discord standar
 
 #initial value is set in the on_ready() event
 thumbnailchannel=None
@@ -112,22 +116,23 @@ async def createthumbnail(message):
     ar=w/h
 
     #Discord method
-
+    """
     ht= sizelimit if h>w else int(ar*sizelimit)
     wt= sizelimit if w>h else int((1/ar)*sizelimit)
-
     """
+
     #Flickr method
     ht= sizelimit
-    wt= int((1/ar)*sizelimit)
-    """
+    wt= int(ar*sizelimit)
+    print(f'ht:{ht} wt:{wt}, (1/ar):{1/ar}')
+
 
     shot=shot.convert('RGB')#to save it in jpg
     shot=shot.filter(ImageFilter.SHARPEN)
     
     #filter algorithms
     #Image.NEAREST, Image.BILINEAR, Image.BICUBIC, Image.ANTIALIAS
-    shot=shot.resize((ht,wt),Image.BICUBIC)
+    shot=shot.resize((wt,ht),Image.BICUBIC)
     
     shot.save('thumbnailtemp.jpg',quality=95)
     thumbnail= await thumbnailchannel.send(file=discord.File('thumbnailtemp.jpg'))
@@ -253,7 +258,7 @@ async def writedb(message,gamename):
     thumbnail= await createthumbnail(message) #link of the thumbnail
     elementid=len(db)+1
     db.insert({'gameName': gamename, 'shotUrl': message.attachments[0].url, 'height': message.attachments[0].height, 'width': message.attachments[0].width, 'thumbnailUrl': thumbnail ,'author': message.author.name, 'authorsAvatarUrl': str(message.author.avatar_url), 'date': datetime.datetime.now().strftime('%Y-%m-%dT%H:%M:%S.%f'), 'score': max(map(lambda m: m.count,message.reactions)), 'ID': elementid, 'iteratorID': int(datetime.datetime.now().timestamp())})
-    dbgitupdate()
+    #dbgitupdate()
 
 async def curateaction(message):
     gamename= await getgamename(message)
@@ -438,6 +443,7 @@ async def curationActive(d):
             if m2.embeds:
                 if m1.jump_url == m2.embeds[0].description[m2.embeds[0].description.find("(")+1:m2.embeds[0].description.find(")")]:
                     print('Already posted')
+                    dbreactionsupdate(m1)
                     flag=False
                     break
         if flag:
@@ -447,6 +453,7 @@ async def curationActive(d):
 async def startcurating():
     while True:
         await curationActive((datetime.datetime.now() - timedelta(days = daystocheck)))
+        dbgitupdate()
         await asyncio.sleep(curatorintervals)
 
         #reactiontrigger= (len(outputchannel.guild.members))/10
