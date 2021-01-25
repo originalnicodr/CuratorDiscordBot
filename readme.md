@@ -72,7 +72,7 @@ I made this bot for being able to curate retroactively, so the correct way to us
    - **!forcepost MESSAGE_ID**: Force the bot to post a message regardless of the amount of reactions. **ATTENTION**: a MESSAGE_ID that doesnt belongs to the inputchannel will crash the bot. Make sure to only force posts with an image in an attachment (aka uploading it to discord) or text with ONLY an external image.url.
  
   - **!setcuratorintervals**: Define the time interval (in seconds) between the channel reactions check.
-  - **!setdaystocheck**:      Define the maximum age of the messages to activly check.
+  - **!setdaystocheck**:      Define the maximum age of the messages to actively check.
   - **!setinputchannel**:     Define from what channel will the bot curate.
   - **!setoutputchannel**:    Define the channel where the curated messages will be sent.
  
@@ -99,14 +99,15 @@ The .json file generated, modified and pushed by the bot consists of elements of
 ```
  
  
-The "score" value represents the amount of "points" the shot got before being picked up by the bot. The way is set up is the amount of reactions of the most reacted emoji.
+The "score" value represents the amount of "points" the shot got. The way is set up is the amount of reactions of the most reacted emoji. This value will be updated when the bot runs the reaction checks.
 The "date" is using the format `Year`-`Month`-`Day`T`Hour`:`Minute`:`Second`.`Millisecond`.
+The "ID" value is the value the tinyDB assigns to the element of the structure being described and the iteratorID is the epoch time of the shot. Both can be used to iterate and sort, but I would say the latter one is more reliable.
  
-## To do
-- The score value isnt updated after the shots get picked up, I could update it with every check pass the bot makes.
  
 ## Final notes
  
 I made this bot in a free week that I had and it kinda grew up from there. Unfortunately I don't have time at the moment to learn front-end programming to make a website showing the shots. Hopefully someone will make one and I will be sure to include a link here whenever that happens.
  
 I apologize that I didn't write the bot so everyone can use the one I am hosting. Hopefully the code and explanation here are enough for setting it up yourself, and if not I hope at least you learned something from it. I know I did.
+
+
