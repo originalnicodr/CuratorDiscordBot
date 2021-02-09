@@ -24,11 +24,13 @@ from tinydb import TinyDB, Query
 
 from git import Repo
 
-
-
-
 from PIL import Image, ImageFilter
 import requests
+
+
+import re 
+
+
 
 #-----------------------------------------------
 
@@ -45,14 +47,14 @@ bot = commands.Bot(command_prefix='!')
 
 #For basicCuration
 #Updated in the startcurating() loop and on the on_ready() event, comment those lines if you dont want this value to get modified
-reactiontrigger = 25
+reactiontrigger = 28
 
 curatorintervals= 5 #time bwtween reaction checks
 daystocheck=7#the maximun age of the messages to check
 
 
-curationlgorithmpast= lambda m : historicalCuration(m)
-curationlgorithm= lambda m :  basicCuration(m)
+curationlgorithmpast= lambda m : historicalUniqueUsersCuration(m)
+curationlgorithm= lambda m :  uniqueUsersCuration(m)
 
 #Curation Algorithms:
 # basicCuration(m)
@@ -69,33 +71,117 @@ ignoredusers=[]
 #initial values are set in the on_ready() event
 inputchannel=None
 outputchannel=None
+socialschannel=None
 
 #---------------------------------------
 
 #-----------Github integration --------------------------
 
 
-websiterepourl = f'https://githubuser:{GIT_TOKEN}@github.com/repo-owner/repo.git'
+websiterepourl = f'https://githubuser:{GIT_TOKEN}@github.com/githubuser/repo.git'
 websiterepofolder = 'websiterepo'
 
 repo = Repo.clone_from(websiterepourl, websiterepofolder)
 assert repo.__class__ is Repo
 
 #database for using the shots in a website
-db = TinyDB('websiterepo/shotsdb.json')
+shotsdb = TinyDB('websiterepo/shotsdb.json')
+authorsdb = TinyDB('websiterepo/authorsdb.json')
 
 def dbgitupdate():
     global repo
     repo.git.add('shotsdb.json')
+    repo.git.add('authorsdb.json')
     repo.index.commit("DB update")
 
     repo = Repo(websiterepofolder)
     origin = repo.remote(name="origin")
     origin.push()
 
-def dbreactionsupdate(message):
-    updatedscore= max(map(lambda m: m.count,message.reactions))#the list shouldnt be empty
-    db.update({'score': updatedscore}, Query().shotUrl == message.attachments[0].url)
+async def dbreactionsupdate(message):
+    listUsers= await uniqueUsersReactions(message)#max(map(lambda m: m.count,message.reactions))#the list shouldnt be empty
+    updatedscore= len(list(listUsers))
+    shotsdb.update({'score': updatedscore}, Query().shotUrl == message.attachments[0].url)
+
+#-------------------------------------------------------------
+
+#-------------------Authors DB integration--------------------
+
+def authorsdbupdate(author):
+    print(f'author{author.name}')
+    print(authorsdb.search(Query().authorid == author.id))
+    if authorsdb.search(Query().authorid == author.id)!=[]:
+        print('updating')
+        authorsdb.update({'authorNick': author.display_name, 'authorsAvatarUrl': str(author.avatar_url)}, Query().authorid == author.id)#avatar and nick update
+
+    else:
+        print('inserting')
+        authorsdb.insert({'authorNick': author.display_name,'authorid': author.id, 'authorsAvatarUrl': str(author.avatar_url), 'flickr':'', 'twitter':'', 'instagram':'', 'steam':'', 'othersocials': ''}) #for discord id (name#042) you can save author directly, for the name before the # use author.name
+
+
+def FindUrls(string): 
+    # findall() has been used  
+    # with valid conditions for urls in string 
+    regex = r"(?i)\b((?:https?://|www\d{0,3}[.]|[a-z0-9.\-]+[.][a-z]{2,4}/)(?:[^\s()<>]+|\(([^\s()<>]+|(\([^\s()<>]+\)))*\))+(?:\(([^\s()<>]+|(\([^\s()<>]+\)))*\)|[^\s`!()\[\]{};:'\".,<>?«»“”‘’]))"
+    url = re.findall(regex,string)       
+    return [x[0] for x in url] 
+
+def addsocials(message):#the message is the social media message
+    author=message.author
+    socials= FindUrls(message.content)
+
+    flickr=''
+    instagram=''
+    steam=''
+    twitter=''
+
+    #Awful way of doing this, please dont judge
+
+    for url in socials:
+        if 'flickr' in url:
+            flickr=url
+            socials.remove(url)
+            break
+
+    for url in socials:
+        if 'instagram' in url:
+            instagram=url
+            socials.remove(url)
+            break
+
+    for url in socials:
+        if 'steam' in url:
+            steam=url
+            socials.remove(url)
+            break
+
+    for url in socials:
+        if 'twitter' in url:
+            twitter=url
+            socials.remove(url)
+            break
+
+    if authorsdb.search(Query().authorid == author.id)!=[]:
+        authorsdb.update({'authorNick': author.display_name, 'authorsAvatarUrl': str(author.avatar_url), 'othersocials': socials}, Query().authorid == author.id)#avatar and nick update
+        if flickr!='':
+            authorsdb.update({'authorNick': author.display_name, 'authorsAvatarUrl': str(author.avatar_url), 'flickr':flickr}, Query().authorid == author.id)
+        if instagram!='':
+            authorsdb.update({'authorNick': author.display_name, 'authorsAvatarUrl': str(author.avatar_url), 'instagram':instagram}, Query().authorid == author.id)
+        if twitter!='':
+            authorsdb.update({'authorNick': author.display_name, 'authorsAvatarUrl': str(author.avatar_url), 'twitter':twitter}, Query().authorid == author.id)
+        if steam!='':
+            authorsdb.update({'authorNick': author.display_name, 'authorsAvatarUrl': str(author.avatar_url), 'steam':steam}, Query().authorid == author.id)
+    else:
+        authorsdb.insert({'authorNick': author.display_name,'authorid': author.id, 'authorsAvatarUrl': str(author.avatar_url), 'flickr': flickr, 'twitter':twitter, 'instagram':instagram, 'steam':steam, 'othersocials': socials}) #for discord id (name#042) you can save author directly, for the name before the # use author.name
+
+
+
+async def historicsocials():
+    global socialschannel
+    async for message in socialschannel.history(limit=None,oldest_first=True):
+        addsocials(message)
+
+
 
 #-------------------------------------------------------------
 
@@ -124,7 +210,6 @@ async def createthumbnail(message):
     #Flickr method
     ht= sizelimit
     wt= int(ar*sizelimit)
-    print(f'ht:{ht} wt:{wt}, (1/ar):{1/ar}')
 
 
     shot=shot.convert('RGB')#to save it in jpg
@@ -143,15 +228,76 @@ async def createthumbnail(message):
 
 #-------Curation algorithms-----------
 
+#returns the amount of reactions of the most reacted emoji
+def maxReactions(message):
+    listNumberReactions= map(lambda m: m.count,message.reactions)
+    if message.reactions!=[]:
+        return max(listNumberReactions)
+    return 0
+
 #Takes the max number of reactions and compares it with the ractiontrigger value
 def basicCuration(message): 
     if message.attachments:
-    
+        """
         listNumberReactions= map(lambda m: m.count,message.reactions)
         if message.reactions!=[]:
             reactions= max(listNumberReactions)
             return (reactiontrigger <= reactions)
+        """
+        return (reactiontrigger <= maxReactions(message))
     return False
+
+#returns the unique users reacting in a message
+async def uniqueUsersReactions(message):
+    uniqueUsers=[] 
+    if message.reactions==[]:
+        return 0
+    #my attempt at a map
+    for reaction in message.reactions:
+        async for user in reaction.users():
+            uniqueUsers.append(user)
+    
+    uniqueUsers=list(filter(lambda u: u.id != message.author.id,dict.fromkeys(uniqueUsers)))#deleting duplicates and not letting the author counts in the number of unique reactions
+    return uniqueUsers
+
+async def uniqueUsersCuration(message): 
+    if message.attachments:
+        reactions= await uniqueUsersReactions(message)
+        return (reactiontrigger <= len(reactions))
+    return False
+
+
+
+async def historicalUniqueUsersCuration(message): 
+
+    #for some reason outputchannel.created_at gives a wrong date, so we will be using 2019-02-26
+    channelscreationdate= datetime.datetime.strptime('2019-02-26','%Y-%m-%d')
+
+    #Minnimun and maximun values that are used in the linear interpolation
+    minv=10
+    maxv=reactiontrigger
+
+    if message.attachments:
+        uniqueUsers=await uniqueUsersReactions(message)
+
+        #print(uniqueUsers)
+
+        if uniqueUsers!=[]:
+            listNumberReactions= uniqueUsers
+            
+            #how new is the message from 0 to 1
+            valueovertime=(message.created_at-channelscreationdate).days/(datetime.datetime.now()-channelscreationdate).days
+            
+
+            #linearinterpolation
+            trigger = (valueovertime * maxv) + ((1-valueovertime) * minv)
+            reactions= len(listNumberReactions)
+            print(f'Trigger value={trigger} <= {reactions} = unique users reacting')
+            
+            return (trigger <= reactions)
+    return False
+
+
 
 #Takes the max number of reactions and compares it with a ractiontrigger value that varies based on the time where the shot was posted
 def historicalCuration(message): 
@@ -164,7 +310,6 @@ def historicalCuration(message):
     maxv=reactiontrigger
 
     if message.attachments:
-        listNumberReactions= map(lambda m: m.count,message.reactions)
         if message.reactions!=[]:
             
             #how new is the message from 0 to 1
@@ -175,7 +320,7 @@ def historicalCuration(message):
             trigger = (valueovertime * maxv) + ((1-valueovertime) * minv)
             print(f'Trigger value={trigger}')
 
-            reactions= max(listNumberReactions)
+            reactions= maxReactions(message)
             return (trigger <= reactions)
     return False
 
@@ -247,29 +392,37 @@ async def writedbdawnoftime(message,gamename):
     if message.author.id in ignoredusers:
         return
     thumbnail= await createthumbnail(message) #link of the thumbnail
-    elementid=len(db)+1
-    db.insert({'gameName': gamename, 'shotUrl': message.attachments[0].url, 'height': message.attachments[0].height, 'width': message.attachments[0].width, 'thumbnailUrl': thumbnail ,'author': message.author.name, 'authorsAvatarUrl': str(message.author.avatar_url), 'date': message.created_at.strftime('%Y-%m-%dT%H:%M:%S.%f'), 'score': max(map(lambda m: m.count,message.reactions)), 'ID': elementid, 'iteratorID': int(message.created_at.timestamp())})
+    elementid=len(shotsdb)+1
+    score=await uniqueUsersReactions(message)
+    score=len(list(score))
+    shotsdb.insert({'gameName': gamename, 'shotUrl': message.attachments[0].url, 'height': message.attachments[0].height, 'width': message.attachments[0].width, 'thumbnailUrl': thumbnail ,'author': message.author.id, 'date': message.created_at.strftime('%Y-%m-%dT%H:%M:%S.%f'), 'score': score, 'ID': elementid, 'epochTime': int(message.created_at.timestamp()), 'spoiler': message.attachments[0].is_spoiler()})
     
+
 
 #instead of using the date of the message it uses the actual time, that way if you sort by new in the future website, the new shots would always be on top, instead of getting mixed
 async def writedb(message,gamename):
     if message.author.id in ignoredusers:
         return
     thumbnail= await createthumbnail(message) #link of the thumbnail
-    elementid=len(db)+1
-    db.insert({'gameName': gamename, 'shotUrl': message.attachments[0].url, 'height': message.attachments[0].height, 'width': message.attachments[0].width, 'thumbnailUrl': thumbnail ,'author': message.author.name, 'authorsAvatarUrl': str(message.author.avatar_url), 'date': datetime.datetime.now().strftime('%Y-%m-%dT%H:%M:%S.%f'), 'score': max(map(lambda m: m.count,message.reactions)), 'ID': elementid, 'iteratorID': int(datetime.datetime.now().timestamp())})
-    #dbgitupdate()
+    elementid=len(shotsdb)+1
+    score=await uniqueUsersReactions(message)
+    score=len(list(score))
+    shotsdb.insert({'gameName': gamename, 'shotUrl': message.attachments[0].url, 'height': message.attachments[0].height, 'width': message.attachments[0].width, 'thumbnailUrl': thumbnail ,'author': message.author.id, 'date': datetime.datetime.now().strftime('%Y-%m-%dT%H:%M:%S.%f'), 'score': score, 'ID': elementid, 'epochTime': int(datetime.datetime.now().timestamp()), 'spoiler': message.attachments[0].is_spoiler()})
+    shotsdb.all()
 
 async def curateaction(message):
     gamename= await getgamename(message)
     await writedb(message,gamename)
     await postembed(message,gamename)
+    authorsdbupdate(message.author)
+    dbgitupdate()
 
 
 async def curateactiondawnoftime(message):
     gamename= await getgamename(message)
     await postembed(message,gamename)
     await writedbdawnoftime(message,gamename)
+    authorsdbupdate(message.author)
 
     #----------------For forcing post actions-------------------
 
@@ -288,7 +441,7 @@ async def postembedexternal(message,gamename):
 async def writedbexternal(message,gamename):
     if message.author.id in ignoredusers:
         return
-    db.insert({'gameName': gamename, 'shotUrl': message.content, 'author': message.author.name, 'authorsAvatarUrl': str(message.author.avatar_url), 'date': message.created_at.strftime('%Y-%m-%dT%H:%M:%S.%f'), 'score': max(map(lambda m: m.count,message.reactions))})
+    shotsdb.insert({'gameName': gamename, 'shotUrl': message.content, 'author': message.author.name, 'authorsAvatarUrl': str(message.author.avatar_url), 'date': message.created_at.strftime('%Y-%m-%dT%H:%M:%S.%f'), 'score': max(map(lambda m: m.count,message.reactions))})
 """
 
 async def curateactionexternal(message):
@@ -298,6 +451,10 @@ async def curateactionexternal(message):
     #--------------------------------------------------------
 
 #----------------------------------------------------
+
+#-----------Authors DB------------------------------
+
+#---------------------------------------------------
 
 #----------Aux Functions----------------------------------
 
@@ -342,6 +499,7 @@ def candidatescheck(m,c):
 def creationDateCheck(message):
     if message.embeds:
         date=datetime.datetime.strptime(message.embeds[0].footer.text.split('.',1)[0],'%Y-%m-%d %H:%M:%S')
+        #print(date)
         return datetime.datetime.now() - timedelta(days = daystocheck) <= date
 
 
@@ -349,20 +507,17 @@ def creationDateCheck(message):
 
 def getchannelo(channelname):#not the best method to do this tho
     #print(list(discord.Client.guilds))
-    #for g in list(discord.Client.guilds):
 
     for g in bot.guilds:
-        if g.name== 'BotTest':
-        #if g.name== 'FRAMED - Screenshot Community':
+        if g.name== 'OutputChannelName':
             return discord.utils.get(g.channels, name=channelname)
 
 def getchanneli(channelname):#not the best method to do this tho
     #print(list(discord.Client.guilds))
-    #for g in list(discord.Client.guilds):
 
     for g in bot.guilds:
         #if g.name== 'BotTest':
-        if g.name== 'FRAMED - Screenshot Community':
+        if g.name== 'InputChannelName':
             return discord.utils.get(g.channels, name=channelname)
 #-------------------------------------------------------------------------------------------------
 
@@ -375,10 +530,12 @@ async def on_ready():
     global inputchannel
     global outputchannel
     global thumbnailchannel
+    global socialschannel
     print(f'{bot.user.name} has connected to Discord!')
     inputchannel=getchanneli('share-your-shot')
     outputchannel=getchannelo('share-your-shot-bot')
     thumbnailchannel=getchannelo('thumbnail-dump')
+    socialschannel=getchanneli('share-your-socials')
 
     #reactiontrigger=(len(outputchannel.guild.members))/10
 
@@ -386,24 +543,25 @@ async def on_ready():
     #ATTENTION: If for some reason the bot cant find one of his embbed messages it wont start, so make sure to run the command !dawnoftimecuration before
     #await debugtempcuration(180)
 
+
     async for m in outputchannel.history(limit=10):
         if m.author == bot.user and m.embeds:
             date= m.created_at - timedelta(days = daystocheck)
             await curationActive(date)
             await startcurating() #never stops
             break
+
     
-"""
+    
+
+
 @bot.event
-async def on_guild_channel_pins_update(channel, last_pin):
-    if inputchannel.name==channel.name:
-        pins= await channel.pins()
-        #print(f'pins: {pins}')
-        if pins and pins[-1].attachments:
-            print(f'Last messages pinned: {pins[-1]}')
-            curateaction(pins[-1])
-            #dbgitupdate()
-"""
+async def on_message(message):
+    if (message.channel.name == 'share-your-socials'):
+        addsocials(message)
+        dbgitupdate()
+    else:
+        await bot.process_commands(message)
 
 #Commands can only be detected in the outputchannel
 @bot.check
@@ -422,38 +580,55 @@ async def on_command_error(ctx, error):
 
 #---------------Command functions----------------------------------------------
 
+async def async_filter(async_pred, iterable):
+    for item in iterable:
+        should_yield = await async_pred(item)
+        if should_yield:
+            yield item
+
+
 #reads the messages since a number of days and post the accepted shots that havent been posted yet
 async def curationActive(d):
 
     #-----------------get listcandidates
     candidatesupdate= inputchannel.history(after=d,oldest_first=True,limit=None)
     listcandidates= await candidatesupdate.flatten()
-    listcandidates= list(filter(lambda m: curationlgorithm(m), listcandidates))
+    #listcandidates= [i async for i in async_filter(curationlgorithm,listcandidatesprev)]#[]#list(async_filter(lambda m: curationlgorithm(m),listcandidatesprev))
+    #my attempt at a filter
+    
+    """
+    for m in listcandidatesprev:
+        b = await curationlgorithm(m)
+        if b:
+            listcandidates.append(m)
+    """
+    
     #---------------
 
     alreadyposted= outputchannel.history(after=d,oldest_first=True,limit=None)
     listalreadyposted= await alreadyposted.flatten()
-    listalreadyposted=list(filter(creationDateCheck,listalreadyposted))
+    listalreadyposted=list(listalreadyposted)
     print('schedule curation')
 
     for m1 in listcandidates:
-        flag= True
-        for m2 in listalreadyposted:
+        check= await curationlgorithm(m1)#it would be faster if we could filter the listcandidates instead of doing this, right?
+        if check:
+            flag= True
+            for m2 in listalreadyposted:
 
-            if m2.embeds:
-                if m1.jump_url == m2.embeds[0].description[m2.embeds[0].description.find("(")+1:m2.embeds[0].description.find(")")]:
-                    print('Already posted')
-                    dbreactionsupdate(m1)
-                    flag=False
-                    break
-        if flag:
-            await curateaction(m1)
-            print(f'Nice shot bro')
+                if m2.embeds:
+                    if m1.jump_url == m2.embeds[0].description[m2.embeds[0].description.find("(")+1:m2.embeds[0].description.find(")")]:
+                        print('Already posted')
+                        await dbreactionsupdate(m1)
+                        flag=False
+                        break
+            if flag:
+                await curateaction(m1)
+                print(f'Nice shot bro')
 
 async def startcurating():
     while True:
         await curationActive((datetime.datetime.now() - timedelta(days = daystocheck)))
-        dbgitupdate()
         await asyncio.sleep(curatorintervals)
 
         #reactiontrigger= (len(outputchannel.guild.members))/10
@@ -466,9 +641,12 @@ class BotActions(commands.Cog):
 
     @commands.command(name='dawnoftimecuration', help='Curate a seated up channel since it was created.')
     async def dawnoftime(self,ctx):
+        await historicsocials()
         async for message in inputchannel.history(limit=None,oldest_first=True):
-            if curationlgorithmpast(message):
-                await curateactiondawnoftime(message)
+            check= await curationlgorithmpast(message)#because of async function (if the algorithm used in curationlgorithmpast is not async take out the await)
+            if check:
+                #await curateactiondawnoftime(message)
+                authorsdbupdate(message.author)
                 print(f'Nice shot bro')
         dbgitupdate()
         print(f'Done curating')
@@ -490,7 +668,6 @@ class BotActions(commands.Cog):
         if message.attachments:
             await curateaction(message) #so it uses the date of the screenshot
             print(f'Nice shot bro')
-            dbgitupdate()
         else:
             await curateactionexternal(message)
             print(f'Nice shot bro')
