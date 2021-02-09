@@ -15,13 +15,15 @@
  
 ## About
  
-CuratorBot is a bot dedicated to selecting the best screenshots from a channel and sending them to another channel. In addition, it uses discord as a host for a website and exports a .json database to a github repo (I don't like to pay for good hosting, sorry).
+CuratorBot is a bot dedicated to selecting the best screenshots from a channel and sending them to another channel. In addition, it uses discord as a host for a website and exports a couple of.json database files to a github repo (I don't like to pay for good hosting, sorry).
  
 Since I made this for a server I am in, it has a lot of assumptions, like searching for a message with text around the screenshot message if this one has no text specifying the game, so I apologise for it.
  
 <p align="center"><img src="https://user-images.githubusercontent.com/24371572/104781820-eb88fe00-5761-11eb-91d0-6daf4448ebad.png">
  
 The bot puts every curated shot link in a .json file, creates a thumbnail which is also uploaded to discord and includes it in said .json file and pushes it to a github repo, so the file can be used as a database for a website showing the screenshots and the bot as an updater for said database.
+
+It also creates a database of authors that includes a lot of useful information. This authors database gets updated every time a shot gets accepted into the shots database and every time a message is sent to the socials channel by adding (or updating) the authors information.
  
 ## How does it work
  
@@ -48,7 +50,7 @@ DISCORD_TOKEN=yourDiscordBotToken
 GIT_TOKEN=githubPersonalAccessTokens
 ```
  
-Later you will have to change the input channel (where the bot looks up for messages), the output channel (where the bot will send the accepted messages) and the thumbnail channel (where the bot will drop the thumbnails it makes).
+Later you will have to change the input channel (where the bot looks up for messages), the output channel (where the bot will send the accepted messages), the thumbnail channel (where the bot will drop the thumbnails it makes) and the socials channel (where the bot gets social links for the authors DB).
  
 You can change the curation algorithms and their values from the code. The info is in the **Constants** section and at the start of each algorithm function.
  
@@ -83,6 +85,8 @@ I made this bot for being able to curate retroactively, so the correct way to us
 ## JSON Database structure
  
 The .json file generated, modified and pushed by the bot consists of elements of the following structure
+
+### Shots DB
  
 ```
 {"gameName": string,
@@ -90,19 +94,34 @@ The .json file generated, modified and pushed by the bot consists of elements of
  "height": int,
  "width": int,
  "thumbnailUrl": string 
- "author": string,
- "authorsAvatarUrl": string,
+ "author": int,
  "date": string,
  "score": int,
  "ID": int,
  "iteratorID": int}
 ```
  
- 
+
+
 The "score" value represents the amount of "points" the shot got. The way is set up is the amount of reactions of the most reacted emoji. This value will be updated when the bot runs the reaction checks.
 The "date" is using the format `Year`-`Month`-`Day`T`Hour`:`Minute`:`Second`.`Millisecond`.
 The "ID" value is the value the tinyDB assigns to the element of the structure being described and the iteratorID is the epoch time of the shot. Both can be used to iterate and sort, but I would say the latter one is more reliable.
+The "author" value is the authorid used in the authors DB.
  
+### Authors DB
+
+```
+{"authorNick": string,
+ "authorid": int,
+ "authorsAvatarUrl": string,
+ "flickr": string,
+ "twitter": string,
+ "instagram": string,
+ "steam": string,
+ "othersocials": [string]}
+ ```
+
+The "authorsNick" is the lastes nick retrieved of the user, the "authorid" is the internal value discord assigns to the user, "authorsAvatarUrl" its, well avatar lol, and "flickr", "twitter", "instagram" and "steam" are links for those websites, where "othersocials" is a list of links from websites that doesnt match the mentioned sites.
  
 ## Final notes
  
