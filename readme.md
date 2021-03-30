@@ -15,7 +15,9 @@
  
 ## About
  
-CuratorBot is a bot dedicated to selecting the best screenshots from a channel and sending them to another channel. In addition, it uses discord as a host for images that are being displayed in a [website](https://framedsc.github.io/HallOfFramed/) and exports a couple of .json database files to a github repo (I don't like to pay for good hosting, sorry).
+CuratorBot is a bot dedicated to selecting the best screenshots from a channel and sending them to another channel. In addition, it uses discord as a host for images that are being displayed in a website and exports a couple of .json database files to a github repo (I don't like to pay for good hosting, sorry).
+
+You can see the highlighted shots in the [Hall of Frames website](https://framedsc.github.io/HallOfFramed/).
  
 Since I made this for a server I am in, it has a lot of assumptions, like searching for a message with text around the screenshot message if this one has no text specifying the game, so I apologise for it.
  
