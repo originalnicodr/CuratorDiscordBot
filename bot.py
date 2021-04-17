@@ -27,6 +27,9 @@ from git import Repo
 from PIL import Image, ImageFilter
 import requests
 
+from colorthief import ColorThief
+import webcolors
+
 
 import re 
 
@@ -40,7 +43,9 @@ TOKEN = os.getenv('DISCORD_TOKEN')
 GIT_TOKEN= os.getenv('GIT_TOKEN')
 #-----------------------------------------------
 
-bot = commands.Bot(command_prefix='!')
+intents = discord.Intents.default()
+intents.members = True
+bot = commands.Bot(command_prefix='!', intents=intents)
 
 
 #------------Constants-----------------
@@ -63,9 +68,19 @@ curationlgorithm= lambda m :  uniqueUsersCuration(m)
 # completeCuration(m)
 
 
-
 #Users that dont want to be on the site, specified by their id (author.id)
-ignoredusers=[]
+
+def is_user_ignored(message):
+    author=message.author
+    server=message.guild
+    #print(server.members)
+
+    member= server.get_member(author.id)
+    rols=map(lambda x: x.name,member.roles)
+    return "HOFBlocked" in rols
+    
+#Users that can use commands in the bot dms
+authorizedusers=[]
 
 
 #initial values are set in the on_ready() event
@@ -182,9 +197,15 @@ async def historicsocials():
         addsocials(message)
 
 
+async def updatesocials(d):#d is a date
+    global socialschannel
+    newsocials= socialschannel.history(after=d,oldest_first=True,limit=None)
+    async for m in newsocials:
+        addsocials(m)
+        print("added new social info")
+
 
 #-------------------------------------------------------------
-
 #-----------Thumbnail creation--------------------------
 sizelimit= 400 #discord standar
 
@@ -220,8 +241,9 @@ async def createthumbnail(message):
     shot=shot.resize((wt,ht),Image.BICUBIC)
     
     shot.save('thumbnailtemp.jpg',quality=95)
+    dominantColor, colorPalette = getColor('thumbnailtemp.jpg')
     thumbnail= await thumbnailchannel.send(file=discord.File('thumbnailtemp.jpg'))
-    return thumbnail.attachments[0].url
+    return thumbnail.attachments[0].url, dominantColor, colorPalette
 
 #--------------------------------------------------------
 
@@ -251,7 +273,7 @@ def basicCuration(message):
 async def uniqueUsersReactions(message):
     uniqueUsers=[] 
     if message.reactions==[]:
-        return 0
+        return uniqueUsers
     #my attempt at a map
     for reaction in message.reactions:
         async for user in reaction.users():
@@ -389,28 +411,29 @@ async def postembed(message,gamename):
 
 
 async def writedbdawnoftime(message,gamename):
-    if message.author.id in ignoredusers:
-        return
-    thumbnail= await createthumbnail(message) #link of the thumbnail
+    thumbnail, dominantColor, colorPalette = await createthumbnail(message) #link of the thumbnail
+    colorName1, closestClrName1 = get_colour_name(dominantColor, colorPalette)
     elementid=len(shotsdb)+1
     score=await uniqueUsersReactions(message)
     score=len(list(score))
-    shotsdb.insert({'gameName': gamename, 'shotUrl': message.attachments[0].url, 'height': message.attachments[0].height, 'width': message.attachments[0].width, 'thumbnailUrl': thumbnail ,'author': message.author.id, 'date': message.created_at.strftime('%Y-%m-%dT%H:%M:%S.%f'), 'score': score, 'ID': elementid, 'epochTime': int(message.created_at.timestamp()), 'spoiler': message.attachments[0].is_spoiler()})
+    shotsdb.insert({'gameName': gamename, 'shotUrl': message.attachments[0].url, 'height': message.attachments[0].height, 'width': message.attachments[0].width, 'thumbnailUrl': thumbnail ,'author': message.author.id, 'date': message.created_at.strftime('%Y-%m-%dT%H:%M:%S.%f'), 'score': score, 'ID': elementid, 'epochTime': int(message.created_at.timestamp()), 'spoiler': message.attachments[0].is_spoiler(), 'colorName': closestClrName1})
     
 
 
 #instead of using the date of the message it uses the actual time, that way if you sort by new in the future website, the new shots would always be on top, instead of getting mixed
 async def writedb(message,gamename):
-    if message.author.id in ignoredusers:
-        return
-    thumbnail= await createthumbnail(message) #link of the thumbnail
+    thumbnail, dominantColor, colorPalette = await createthumbnail(message) #link of the thumbnail
+    colorName1, closestClrName1 = get_colour_name(dominantColor, colorPalette)
     elementid=len(shotsdb)+1
     score=await uniqueUsersReactions(message)
     score=len(list(score))
-    shotsdb.insert({'gameName': gamename, 'shotUrl': message.attachments[0].url, 'height': message.attachments[0].height, 'width': message.attachments[0].width, 'thumbnailUrl': thumbnail ,'author': message.author.id, 'date': datetime.datetime.now().strftime('%Y-%m-%dT%H:%M:%S.%f'), 'score': score, 'ID': elementid, 'epochTime': int(datetime.datetime.now().timestamp()), 'spoiler': message.attachments[0].is_spoiler()})
+    shotsdb.insert({'gameName': gamename, 'shotUrl': message.attachments[0].url, 'height': message.attachments[0].height, 'width': message.attachments[0].width, 'thumbnailUrl': thumbnail ,'author': message.author.id, 'date': datetime.datetime.now().strftime('%Y-%m-%dT%H:%M:%S.%f'), 'score': score, 'ID': elementid, 'epochTime': int(datetime.datetime.now().timestamp()), 'spoiler': message.attachments[0].is_spoiler(), 'colorName': closestClrName1})
     shotsdb.all()
 
 async def curateaction(message):
+    if is_user_ignored(message):
+        print("User ignored")
+        return
     gamename= await getgamename(message)
     await writedb(message,gamename)
     await postembed(message,gamename)
@@ -419,6 +442,8 @@ async def curateaction(message):
 
 
 async def curateactiondawnoftime(message):
+    if is_user_ignored(message):
+        return
     gamename= await getgamename(message)
     await postembed(message,gamename)
     await writedbdawnoftime(message,gamename)
@@ -439,13 +464,13 @@ async def postembedexternal(message,gamename):
 #external shots wont be added to the page
 """
 async def writedbexternal(message,gamename):
-    if message.author.id in ignoredusers:
-        return
     shotsdb.insert({'gameName': gamename, 'shotUrl': message.content, 'author': message.author.name, 'authorsAvatarUrl': str(message.author.avatar_url), 'date': message.created_at.strftime('%Y-%m-%dT%H:%M:%S.%f'), 'score': max(map(lambda m: m.count,message.reactions))})
 """
 
 async def curateactionexternal(message):
     #await writedbexternal(message,'')
+    if is_user_ignored(message):
+        return
     await postembedexternal(message,'')
 
     #--------------------------------------------------------
@@ -465,10 +490,14 @@ def timedifabs(d1,d2):
 
 #Checks five messages before and after the message to see if it finds a text to use as name of the game
 async def getgamename(message):
-    gamename=message.content
+    gamename=message.content#message.content
 
     if gamename and len(gamename)<255:
-        return gamename
+        #Please dont judge me its late and I am tired
+        if '\n' in gamename:
+            return gamename.split('\n', 1)[0]
+        else:
+            return gamename
 
     print('Buscando nombre del juego')
 
@@ -485,8 +514,15 @@ async def getgamename(message):
     for m in listmessages:
         if  timedifabs(placeholdermessage.created_at,message.created_at) > timedifabs(m.created_at,message.created_at):
             placeholdermessage=m
-    
-    return placeholdermessage.content
+
+
+    #print(placeholdermessage.content)
+
+    #Please dont judge me its late and I am tired
+    if '\n' in placeholdermessage.content:
+        return placeholdermessage.content.split('\n', 1)[1]
+    else:
+        return placeholdermessage.content
 
 #Checks if the message (identified by the url) is on the list
 def candidatescheck(m,c):
@@ -502,9 +538,45 @@ def creationDateCheck(message):
         #print(date)
         return datetime.datetime.now() - timedelta(days = daystocheck) <= date
 
+def getColor(fileName): 
+    color_thief = ColorThief(fileName)
+    """
+    quality settings, 1 is the highest quality, the bigger
+    the number, the faster a color will be returned but
+    the greater the likelihood that it will not be the
+    visually most dominant color
+    """
+    colorPalette = color_thief.get_palette(quality=3)
+    dominantColor = colorPalette[0]
+    return dominantColor, colorPalette
+
+def closest_colour(requested_colour):
+    min_colours = {}
+    for key, name in webcolors.css3_hex_to_names.items():
+        r_c, g_c, b_c = webcolors.hex_to_rgb(key)
+        rd = (r_c - requested_colour[0] - 10) ** 2
+        gd = (g_c - requested_colour[1] - 10) ** 2
+        bd = (b_c - requested_colour[2] - 10) ** 2
+        min_colours[(rd + gd + bd)] = name
+    return min_colours[min(min_colours.keys())]
+
+def get_colour_name(requested_colour, colorPalette):
+    n = 1
+    try:
+        closest_name = actual_name = webcolors.rgb_to_name(requested_colour)
+    except ValueError:
+        closest_name = closest_colour(requested_colour)
+        while closest_name == 'black' or closest_name == 'darkslategrey':
+            closest_name = closest_colour(colorPalette[n])
+            n += 1
+        actual_name = None
+    return actual_name, closest_name
+
 
 #----------These are divided in two functions to filter between channels (security messure)--------
 
+#DONT CHANGE
+#necesary for thumbnailchannel
 def getchannelo(channelname):#not the best method to do this tho
     #print(list(discord.Client.guilds))
 
@@ -533,7 +605,7 @@ async def on_ready():
     global socialschannel
     print(f'{bot.user.name} has connected to Discord!')
     inputchannel=getchanneli('share-your-shot')
-    outputchannel=getchannelo('share-your-shot-bot')
+    outputchannel=getchanneli('hall-of-framed')
     thumbnailchannel=getchannelo('thumbnail-dump')
     socialschannel=getchanneli('share-your-socials')
 
@@ -543,14 +615,29 @@ async def on_ready():
     #ATTENTION: If for some reason the bot cant find one of his embbed messages it wont start, so make sure to run the command !dawnoftimecuration before
     #await debugtempcuration(180)
 
+    
+    #client.private_channels
 
+    #Open DMs channel for command dms
+    """
+    for userid in authorizedusers:
+        user = await bot.fetch_user(userid)
+        await user.send("Message sent to open a DM channel for future DMs commands. Sorry for the inconvenience, send your complains to Nico I am just a bot beep beep boop.")
+    """
+
+    
+    
+
+    
     async for m in outputchannel.history(limit=10):
         if m.author == bot.user and m.embeds:
             date= m.created_at - timedelta(days = daystocheck)
+            #await execqueuecommandssince(m.created_at)
+            await updatesocials(m.created_at) #update socials since the last time the bot sent a message
             await curationActive(date)
             await startcurating() #never stops
             break
-
+    
     
     
 
@@ -563,10 +650,16 @@ async def on_message(message):
     else:
         await bot.process_commands(message)
 
+
 #Commands can only be detected in the outputchannel
 @bot.check
 async def predicate(ctx):
-    return ctx.channel.name==outputchannel.name
+    if isinstance(ctx.channel, discord.channel.DMChannel):
+        return (ctx.author.id in authorizedusers)
+    else:#no es necesario el else pero bueno
+        return (ctx.channel.name==outputchannel.name)
+
+
 
 #Allows me to keep using other commands after the check above fails
 @bot.event
@@ -585,6 +678,35 @@ async def async_filter(async_pred, iterable):
         should_yield = await async_pred(item)
         if should_yield:
             yield item
+
+async def execqueuecommandssince(date):
+    commands=[]
+    for userid in authorizedusers:
+        user=await bot.fetch_user(userid) 
+
+        if not (user.dm_channel):
+            await user.create_dm()
+        userchannel= user.dm_channel
+
+        morecommands=await userchannel.history(after=date,oldest_first=True,limit=None).flatten()
+
+        commands=commands+list(morecommands)
+        
+    
+    for m in commands:
+        print(m.content)
+        if "!forcepost " == m.content[:11]:
+            await forcepost(m.content[11:])
+            
+
+async def forcepost(id):
+    message= await inputchannel.fetch_message(id)
+    if message.attachments:
+        await curateaction(message) #so it uses the date of the screenshot
+        print(f'Nice shot bro')
+    else:
+        await curateactionexternal(message)
+        print(f'Nice shot bro')
 
 
 #reads the messages since a number of days and post the accepted shots that havent been posted yet
@@ -645,7 +767,7 @@ class BotActions(commands.Cog):
         async for message in inputchannel.history(limit=None,oldest_first=True):
             check= await curationlgorithmpast(message)#because of async function (if the algorithm used in curationlgorithmpast is not async take out the await)
             if check:
-                #await curateactiondawnoftime(message)
+                await curateactiondawnoftime(message)
                 authorsdbupdate(message.author)
                 print(f'Nice shot bro')
         dbgitupdate()
@@ -663,16 +785,11 @@ class BotActions(commands.Cog):
 
     #ATTENTION: an id from a message that doesnt belongs to the inputchannel will crash the bot
     @commands.command(name='forcepost', help='Force the bot to curate a message regardless of the amount of reactions. ATTENTION: an id from a message that doesnt belongs to the inputchannel will crash the bot. Make sure to only force posts with an image or ONLY with an external image.url')
-    async def forcepost(self,ctx,id):
-        message= await inputchannel.fetch_message(id)
-        if message.attachments:
-            await curateaction(message) #so it uses the date of the screenshot
-            print(f'Nice shot bro')
-        else:
-            await curateactionexternal(message)
-            print(f'Nice shot bro')
+    async def forcepostcommand(self,ctx,id):
+        await forcepost(id)
 
 bot.add_cog(BotActions())
+
 
 
 
@@ -702,5 +819,7 @@ class ConfigCommands(commands.Cog):
 bot.add_cog(ConfigCommands())
 
 #--------------------------------------------------
+
+
 
 bot.run(TOKEN)
