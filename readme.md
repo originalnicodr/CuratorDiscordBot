@@ -12,19 +12,22 @@
      <img src="https://img.shields.io/badge/pillow-8.1.0-blue.svg" alt="discord.py"></a>
   <a href="https://github.com/psf/requests">
      <img src="https://img.shields.io/badge/requests-2.22.0-blue.svg" alt="discord.py"></a>
+  <a href="https://github.com/fengsp/color-thief-py">
+     <img src="https://img.shields.io/badge/colorthief-0.2.1-blue.svg" alt="discord.py"></a>
+  <a href="https://github.com/ubernostrum/webcolors">
+     <img src="https://img.shields.io/badge/webcolors-1.3-blue.svg" alt="discord.py"></a>
+ 
  
 ## About
  
-CuratorBot is a bot dedicated to selecting the best screenshots from a channel and sending them to another channel. In addition, it uses discord as a host for images that are being displayed in a website and exports a couple of .json database files to a github repo (I don't like to pay for good hosting, sorry).
-
-You can see the highlighted shots in the [Hall of Framed website](https://framedsc.github.io/HallOfFramed/).
+CuratorBot is a bot dedicated to selecting the best screenshots from a channel and sending them to another channel. In addition, it uses discord as a host for a website and exports a couple of.json database files to a github repo (I don't like to pay for good hosting, sorry).
  
 Since I made this for a server I am in, it has a lot of assumptions, like searching for a message with text around the screenshot message if this one has no text specifying the game, so I apologise for it.
  
 <p align="center"><img src="https://user-images.githubusercontent.com/24371572/104781820-eb88fe00-5761-11eb-91d0-6daf4448ebad.png">
  
 The bot puts every curated shot link in a .json file, creates a thumbnail which is also uploaded to discord and includes it in said .json file and pushes it to a github repo, so the file can be used as a database for a website showing the screenshots and the bot as an updater for said database.
-
+ 
 It also creates a database of authors that includes a lot of useful information. This authors database gets updated every time a shot gets accepted into the shots database and every time a message is sent to the socials channel by adding (or updating) the authors information.
  
 ## How does it work
@@ -62,9 +65,11 @@ To change the repo where the bot will push change the link in the **Github integ
  
 To change the the thumbnails options (extension of the fil, size, filter used in the resizing, etc.) check the **Thumbnail creation** section.
  
+The bot can ignore shots from people that have an specific rol. To specify the names rol change it in the **is_user_ignored** function.
+ 
 ## Usage
  
-The commands can only be accepted in the channel where the images will be sent.
+The commands can be accepted in the channel where the images will be sent or via DMs, but you would need to include the users ID in the **authorizedusers** list for the latter to be accepted.
  
 I made this bot for being able to curate retroactively, so the correct way to use it after setting it up would be to use the **!dawnoftimecuration** (using a new, clean channel as an output channel) to curate all past screenshots, and later use **!starcurating** to constantly check for new screenshots for the bot to send. If for some reason the bot goes offline, whenever it gets online again it will curate from where he was (make sure to run the **!dawnoftimecuration** command first).
  
@@ -87,7 +92,7 @@ I made this bot for being able to curate retroactively, so the correct way to us
 ## JSON Database structure
  
 The .json file generated, modified and pushed by the bot consists of elements of the following structure
-
+ 
 ### Shots DB
  
 ```
@@ -100,18 +105,20 @@ The .json file generated, modified and pushed by the bot consists of elements of
  "date": string,
  "score": int,
  "ID": int,
- "iteratorID": int}
+ "epochTime": int,
+ "spoiler": bool,
+ "colorName": string }
 ```
  
-
-
+ 
 The "score" value represents the amount of "points" the shot got. The way is set up is the amount of reactions of the most reacted emoji. This value will be updated when the bot runs the reaction checks.
 The "date" is using the format `Year`-`Month`-`Day`T`Hour`:`Minute`:`Second`.`Millisecond`.
-The "ID" value is the value the tinyDB assigns to the element of the structure being described and the iteratorID is the epoch time of the shot. Both can be used to iterate and sort, but I would say the latter one is more reliable.
+The "ID" value is the value the tinyDB assigns to the element of the structure being described and the epochTime is the epoch time of the shot. Both can be used to iterate and sort, but I would say the latter one is more reliable.
 The "author" value is the authorid used in the authors DB.
+The "colorName" value is the name of the most prominent color in the shot, if you want to do color search or some fancy stuff.
  
 ### Authors DB
-
+ 
 ```
 {"authorNick": string,
  "authorid": int,
@@ -122,7 +129,7 @@ The "author" value is the authorid used in the authors DB.
  "steam": string,
  "othersocials": [string]}
  ```
-
+ 
 The "authorsNick" is the lastes nick retrieved of the user, the "authorid" is the internal value discord assigns to the user, "authorsAvatarUrl" its, well avatar lol, and "flickr", "twitter", "instagram" and "steam" are links for those websites, where "othersocials" is a list of links from websites that doesnt match the mentioned sites.
  
 ## Final notes
@@ -130,5 +137,3 @@ The "authorsNick" is the lastes nick retrieved of the user, the "authorid" is th
 I made this bot in a free week that I had and it kinda grew up from there. Unfortunately I don't have time at the moment to learn front-end programming to make a website showing the shots. Hopefully someone will make one and I will be sure to include a link here whenever that happens.
  
 I apologize that I didn't write the bot so everyone can use the one I am hosting. Hopefully the code and explanation here are enough for setting it up yourself, and if not I hope at least you learned something from it. I know I did.
-
-
