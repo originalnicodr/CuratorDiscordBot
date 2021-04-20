@@ -520,7 +520,7 @@ async def getgamename(message):
 
     #Please dont judge me its late and I am tired
     if '\n' in placeholdermessage.content:
-        return placeholdermessage.content.split('\n', 1)[1]
+        return placeholdermessage.content.split('\n', 1)[0]
     else:
         return placeholdermessage.content
 
