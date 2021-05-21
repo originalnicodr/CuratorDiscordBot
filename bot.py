@@ -276,6 +276,8 @@ async def uniqueUsersReactions(message):
         return uniqueUsers
     #my attempt at a map
     for reaction in message.reactions:
+        if reaction.users()==[]:
+            return uniqueUsers
         async for user in reaction.users():
             uniqueUsers.append(user)
     
