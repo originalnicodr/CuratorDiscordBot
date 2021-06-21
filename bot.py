@@ -54,7 +54,7 @@ bot = commands.Bot(command_prefix='!', intents=intents)
 #Updated in the startcurating() loop and on the on_ready() event, comment those lines if you dont want this value to get modified
 reactiontrigger = 28
 
-curatorintervals= 5 #time bwtween reaction checks
+curatorintervals= 1800 #time bwtween reaction checks
 daystocheck=7#the maximun age of the messages to check
 
 
@@ -68,6 +68,7 @@ curationlgorithm= lambda m :  uniqueUsersCuration(m)
 # completeCuration(m)
 
 
+
 #Users that dont want to be on the site, specified by their id (author.id)
 
 def is_user_ignored(message):
@@ -78,10 +79,22 @@ def is_user_ignored(message):
     member= server.get_member(author.id)
     rols=map(lambda x: x.name,member.roles)
     return "HOFBlocked" in rols
+
+async def ignore_bcs_emoji(message):
+    if message.reactions==[]:
+        return False
+    for reaction in message.reactions:
+        if str(reaction.emoji) == '🚫':
+            async for user in reaction.users(): #I cant do "message.author in reaction.users()" for whatever reason
+                if user==message.author:
+                    return True
+        return False
+    return False
     
+
+
 #Users that can use commands in the bot dms
 authorizedusers=[]
-
 
 #initial values are set in the on_ready() event
 inputchannel=None
@@ -197,6 +210,7 @@ async def historicsocials():
         addsocials(message)
 
 
+
 async def updatesocials(d):#d is a date
     global socialschannel
     newsocials= socialschannel.history(after=d,oldest_first=True,limit=None)
@@ -205,7 +219,9 @@ async def updatesocials(d):#d is a date
         print("added new social info")
 
 
+
 #-------------------------------------------------------------
+
 #-----------Thumbnail creation--------------------------
 sizelimit= 400 #discord standar
 
@@ -436,6 +452,16 @@ async def curateaction(message):
     if is_user_ignored(message):
         print("User ignored")
         return
+    if await ignore_bcs_emoji(message):
+        print("Shot ignored because of emoji")
+        return
+    gamename= await getgamename(message)
+    await writedb(message,gamename)
+    await postembed(message,gamename)
+    authorsdbupdate(message.author)
+    dbgitupdate()
+
+async def curateactionforce(message):
     gamename= await getgamename(message)
     await writedb(message,gamename)
     await postembed(message,gamename)
@@ -445,6 +471,7 @@ async def curateaction(message):
 
 async def curateactiondawnoftime(message):
     if is_user_ignored(message):
+        print("User ignored")
         return
     gamename= await getgamename(message)
     await postembed(message,gamename)
@@ -466,13 +493,14 @@ async def postembedexternal(message,gamename):
 #external shots wont be added to the page
 """
 async def writedbexternal(message,gamename):
+    #if message.author.id in ignoredusers:
     shotsdb.insert({'gameName': gamename, 'shotUrl': message.content, 'author': message.author.name, 'authorsAvatarUrl': str(message.author.avatar_url), 'date': message.created_at.strftime('%Y-%m-%dT%H:%M:%S.%f'), 'score': max(map(lambda m: m.count,message.reactions))})
 """
 
 async def curateactionexternal(message):
     #await writedbexternal(message,'')
-    if is_user_ignored(message):
-        return
+    #if is_user_ignored(message):
+    #   return
     await postembedexternal(message,'')
 
     #--------------------------------------------------------
@@ -583,7 +611,8 @@ def getchannelo(channelname):#not the best method to do this tho
     #print(list(discord.Client.guilds))
 
     for g in bot.guilds:
-        if g.name== 'OutputChannelName':
+        #if g.name== 'FRAMED - Screenshot Community':
+        if g.name== 'BotTest':
             return discord.utils.get(g.channels, name=channelname)
 
 def getchanneli(channelname):#not the best method to do this tho
@@ -591,7 +620,7 @@ def getchanneli(channelname):#not the best method to do this tho
 
     for g in bot.guilds:
         #if g.name== 'BotTest':
-        if g.name== 'InputChannelName':
+        if g.name== 'FRAMED - Screenshot Community':
             return discord.utils.get(g.channels, name=channelname)
 #-------------------------------------------------------------------------------------------------
 
@@ -626,19 +655,17 @@ async def on_ready():
         user = await bot.fetch_user(userid)
         await user.send("Message sent to open a DM channel for future DMs commands. Sorry for the inconvenience, send your complains to Nico I am just a bot beep beep boop.")
     """
-
-    
-    
-
-    
     async for m in outputchannel.history(limit=10):
         if m.author == bot.user and m.embeds:
             date= m.created_at - timedelta(days = daystocheck)
+            print(m.created_at)
             #await execqueuecommandssince(m.created_at)
             await updatesocials(m.created_at) #update socials since the last time the bot sent a message
-            await curationActive(date)
+            #await curationActive(date)
             await startcurating() #never stops
+            print("Sleeping...")
             break
+
     
     
     
@@ -646,12 +673,11 @@ async def on_ready():
 
 @bot.event
 async def on_message(message):
-    if (message.channel.name == 'share-your-socials'):
+    if (message.channel is discord.TextChannel and message.channel.name == 'share-your-socials'):
         addsocials(message)
         dbgitupdate()
     else:
         await bot.process_commands(message)
-
 
 #Commands can only be detected in the outputchannel
 @bot.check
@@ -681,6 +707,7 @@ async def async_filter(async_pred, iterable):
         if should_yield:
             yield item
 
+#Doesnt seem to be working
 async def execqueuecommandssince(date):
     commands=[]
     for userid in authorizedusers:
@@ -704,7 +731,7 @@ async def execqueuecommandssince(date):
 async def forcepost(id):
     message= await inputchannel.fetch_message(id)
     if message.attachments:
-        await curateaction(message) #so it uses the date of the screenshot
+        await curateactionforce(message) #so it uses the date of the screenshot
         print(f'Nice shot bro')
     else:
         await curateactionexternal(message)
