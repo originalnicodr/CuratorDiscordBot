@@ -88,7 +88,7 @@ async def ignore_bcs_emoji(message):
             async for user in reaction.users(): #I cant do "message.author in reaction.users()" for whatever reason
                 if user==message.author:
                     return True
-        return False
+            return False
     return False
     
 
