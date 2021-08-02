@@ -453,6 +453,12 @@ async def removeshotfromdb(message):
 	shotsdb.remove(q.ID == message.ID)
 	shotsdb.all()
 
+async def removeshotsfromauthor(authorid):
+	q = Query()
+	shotsdb.remove(q.author==authorid)
+	shotsdb.all()
+
+
 async def curateaction(message):
     if is_user_ignored(message):
         print("User ignored")
@@ -750,6 +756,16 @@ async def forceremovepost(id):
 	dbgitupdate()
 
 
+async def forceremoveauthor(id):
+	authorQuery = Query()
+	authorsMatching = authorsdb.search(authorQuery.authorNick==id)
+	if len(authorsMatching) > 0:
+		await removeshotsfromauthor(authorsMatching[0])
+		print('Author found, shots removed.')
+	else:
+		print('Author not found.')
+
+
 #reads the messages since a number of days and post the accepted shots that havent been posted yet
 async def curationActive(d):
 
@@ -833,6 +849,9 @@ class BotActions(commands.Cog):
     async def forceremovepostcommand(self, ctx, id):
         await forceremovepost(id)
 
+    @commands.command(name='forceremoveauthor', help='Force the bot to remove all shots from the author with the Discord id (Nickname, like JohnDoe#1234) specified')
+    async def forceremoveauthor(self, ctx, id):
+        await forceremoveauthor(id)
 
 bot.add_cog(BotActions())
 
