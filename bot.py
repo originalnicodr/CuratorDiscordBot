@@ -449,14 +449,14 @@ async def writedb(message,gamename):
     shotsdb.all()
 
 async def removeshotfromdb(message):
-	q = Query()
-	shotsdb.remove(q.ID == message.ID)
-	shotsdb.all()
+    q = Query()
+    shotsdb.remove(q.shotUrl == message.attachments[0].url)
+    shotsdb.all()
 
 async def removeshotsfromauthor(authorid):
-	q = Query()
-	shotsdb.remove(q.author==authorid)
-	shotsdb.all()
+    q = Query()
+    shotsdb.remove(q.author==authorid)
+    shotsdb.all()
 
 
 async def curateaction(message):
@@ -757,13 +757,14 @@ async def forceremovepost(id):
 
 
 async def forceremoveauthor(id):
-	authorQuery = Query()
-	authorsMatching = authorsdb.search(authorQuery.authorNick==id)
-	if len(authorsMatching) > 0:
-		await removeshotsfromauthor(authorsMatching[0])
-		print('Author found, shots removed.')
-	else:
-		print('Author not found.')
+    authorQuery = Query()
+    authorsMatching = authorsdb.search(authorQuery.authorNick==id)
+    if len(authorsMatching) > 0:
+        await removeshotsfromauthor(authorsMatching[0]['authorid'])
+        print('Author found, shots removed.')
+        dbgitupdate()
+    else:
+        print('Author not found.')
 
 
 #reads the messages since a number of days and post the accepted shots that havent been posted yet
