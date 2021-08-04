@@ -448,6 +448,17 @@ async def writedb(message,gamename):
     shotsdb.insert({'gameName': gamename, 'shotUrl': message.attachments[0].url, 'height': message.attachments[0].height, 'width': message.attachments[0].width, 'thumbnailUrl': thumbnail ,'author': message.author.id, 'date': datetime.datetime.now().strftime('%Y-%m-%dT%H:%M:%S.%f'), 'score': score, 'ID': elementid, 'epochTime': int(datetime.datetime.now().timestamp()), 'spoiler': message.attachments[0].is_spoiler(), 'colorName': closestClrName1})
     shotsdb.all()
 
+async def removeshotfromdb(message):
+    q = Query()
+    shotsdb.remove(q.shotUrl == message.attachments[0].url)
+    shotsdb.all()
+
+async def removeshotsfromauthor(authorid):
+    q = Query()
+    shotsdb.remove(q.author==authorid)
+    shotsdb.all()
+
+
 async def curateaction(message):
     if is_user_ignored(message):
         print("User ignored")
@@ -738,6 +749,24 @@ async def forcepost(id):
         print(f'Nice shot bro')
 
 
+async def forceremovepost(id):
+	message = await inputchannel.fetch_message(id)
+	await removeshotfromdb(message)
+	print(f'removed it')
+	dbgitupdate()
+
+
+async def forceremoveauthor(id):
+    authorQuery = Query()
+    authorsMatching = authorsdb.search(authorQuery.authorNick==id)
+    if len(authorsMatching) > 0:
+        await removeshotsfromauthor(authorsMatching[0]['authorid'])
+        print('Author found, shots removed.')
+        dbgitupdate()
+    else:
+        print('Author not found.')
+
+
 #reads the messages since a number of days and post the accepted shots that havent been posted yet
 async def curationActive(d):
 
@@ -811,14 +840,21 @@ class BotActions(commands.Cog):
     async def curationsince(self,ctx,d):
         await curationActive((datetime.datetime.now() - timedelta(days = int(d))))
 
-
     #ATTENTION: an id from a message that doesnt belongs to the inputchannel will crash the bot
     @commands.command(name='forcepost', help='Force the bot to curate a message regardless of the amount of reactions. ATTENTION: an id from a message that doesnt belongs to the inputchannel will crash the bot. Make sure to only force posts with an image or ONLY with an external image.url')
     async def forcepostcommand(self,ctx,id):
         await forcepost(id)
 
-bot.add_cog(BotActions())
+    #ATTENTION: an id from a message that doesnt belongs to the inputchannel will crash the bot
+    @commands.command(name='forceremovepost', help='Force the bot to remove a shot that is posted in the message with the id specified. ATTENTION: an id from a message that doesnt belongs to the inputchannel will crash the bot. Make sure to only force posts with an image or ONLY with an external image.url')
+    async def forceremovepostcommand(self, ctx, id):
+        await forceremovepost(id)
 
+    @commands.command(name='forceremoveauthor', help='Force the bot to remove all shots from the author with the Discord id (Nickname, like JohnDoe#1234) specified')
+    async def forceremoveauthor(self, ctx, id):
+        await forceremoveauthor(id)
+
+bot.add_cog(BotActions())
 
 
 
