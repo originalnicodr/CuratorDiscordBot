@@ -16,7 +16,8 @@
      <img src="https://img.shields.io/badge/colorthief-0.2.1-blue.svg" alt="discord.py"></a>
   <a href="https://github.com/ubernostrum/webcolors">
      <img src="https://img.shields.io/badge/webcolors-1.3-blue.svg" alt="discord.py"></a>
- 
+  <a href="https://github.com/theskumar/python-dotenv">
+     <img src="https://img.shields.io/badge/pythondotenv-0.19.0-blue.svg" alt="discord.py"></a>
  
 ## About
  
@@ -79,6 +80,12 @@ I made this bot for being able to curate retroactively, so the correct way to us
   - **!dawnoftimecuration**:  Curate a seated up channel since it was created.
   - **!startcurating**: Start actively curating the shots since the number of days specified by the daystocheck value.
    - **!forcepost MESSAGE_ID**: Force the bot to post a message regardless of the amount of reactions. **ATTENTION**: a MESSAGE_ID that doesnt belongs to the inputchannel will crash the bot. Make sure to only force posts with an image in an attachment (aka uploading it to discord) or text with ONLY an external image.url.
+
+           #ATTENTION: an id from a message that doesnt belongs to the inputchannel will crash the bot
+   - **!forceremovepost MESSAGE_ID**: Force the bot to remove a shot that is posted in the message with the id specified. **ATTENTION**: an id from a message that doesnt belongs to the inputchannel will crash the bot.
+
+   - **!forceremoveauthor AUTHOR_NICK**: Force the bot to remove all shots from the author with the Discord id (Nickname, like JohnDoe#1234) specified.
+
  
   - **!setcuratorintervals**: Define the time interval (in seconds) between the channel reactions check.
   - **!setdaystocheck**:      Define the maximum age of the messages to actively check.
@@ -101,7 +108,7 @@ The .json file generated, modified and pushed by the bot consists of elements of
  "height": int,
  "width": int,
  "thumbnailUrl": string 
- "author": int,
+ "author": string,
  "date": string,
  "score": int,
  "ID": int,
@@ -121,7 +128,7 @@ The "colorName" value is the name of the most prominent color in the shot, if yo
  
 ```
 {"authorNick": string,
- "authorid": int,
+ "authorid": string,
  "authorsAvatarUrl": string,
  "flickr": string,
  "twitter": string,

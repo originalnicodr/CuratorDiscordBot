@@ -52,7 +52,7 @@ bot = commands.Bot(command_prefix='!', intents=intents)
 
 #For basicCuration
 #Updated in the startcurating() loop and on the on_ready() event, comment those lines if you dont want this value to get modified
-reactiontrigger = 28
+reactiontrigger = 32
 
 curatorintervals= 1800 #time bwtween reaction checks
 daystocheck=7#the maximun age of the messages to check
@@ -74,11 +74,14 @@ curationlgorithm= lambda m :  uniqueUsersCuration(m)
 def is_user_ignored(message):
     author=message.author
     server=message.guild
-    #print(server.members)
+    if author is None:
+        return False
 
     member= server.get_member(author.id)
+    if member is None:
+        return False
     rols=map(lambda x: x.name,member.roles)
-    return "HOFBlocked" in rols
+    return "HOFBlocked" in rols or "Padawan" in rols
 
 async def ignore_bcs_emoji(message):
     if message.reactions==[]:
@@ -136,15 +139,16 @@ async def dbreactionsupdate(message):
 #-------------------Authors DB integration--------------------
 
 def authorsdbupdate(author):
+    authorid_str=str(author.id)
     print(f'author{author.name}')
-    print(authorsdb.search(Query().authorid == author.id))
-    if authorsdb.search(Query().authorid == author.id)!=[]:
+    print(authorsdb.search(Query().authorid == authorid_str))
+    if authorsdb.search(Query().authorid == authorid_str)!=[]:
         print('updating')
-        authorsdb.update({'authorNick': author.display_name, 'authorsAvatarUrl': str(author.avatar_url)}, Query().authorid == author.id)#avatar and nick update
+        authorsdb.update({'authorNick': author.display_name, 'authorsAvatarUrl': str(author.avatar_url)}, Query().authorid == authorid_str)#avatar and nick update
 
     else:
         print('inserting')
-        authorsdb.insert({'authorNick': author.display_name,'authorid': author.id, 'authorsAvatarUrl': str(author.avatar_url), 'flickr':'', 'twitter':'', 'instagram':'', 'steam':'', 'othersocials': ''}) #for discord id (name#042) you can save author directly, for the name before the # use author.name
+        authorsdb.insert({'authorNick': author.display_name,'authorid': authorid_str, 'authorsAvatarUrl': str(author.avatar_url), 'flickr':'', 'twitter':'', 'instagram':'', 'steam':'', 'othersocials': ''}) #for discord id (name#042) you can save author directly, for the name before the # use author.name
 
 
 def FindUrls(string): 
@@ -189,18 +193,20 @@ def addsocials(message):#the message is the social media message
             socials.remove(url)
             break
 
-    if authorsdb.search(Query().authorid == author.id)!=[]:
-        authorsdb.update({'authorNick': author.display_name, 'authorsAvatarUrl': str(author.avatar_url), 'othersocials': socials}, Query().authorid == author.id)#avatar and nick update
+    authorid_str=str(author.id)
+
+    if authorsdb.search(Query().authorid == authorid_str)!=[]:
+        authorsdb.update({'authorNick': author.display_name, 'authorsAvatarUrl': str(author.avatar_url), 'othersocials': socials}, Query().authorid == authorid_str)#avatar and nick update
         if flickr!='':
-            authorsdb.update({'authorNick': author.display_name, 'authorsAvatarUrl': str(author.avatar_url), 'flickr':flickr}, Query().authorid == author.id)
+            authorsdb.update({'authorNick': author.display_name, 'authorsAvatarUrl': str(author.avatar_url), 'flickr':flickr}, Query().authorid == authorid_str)
         if instagram!='':
-            authorsdb.update({'authorNick': author.display_name, 'authorsAvatarUrl': str(author.avatar_url), 'instagram':instagram}, Query().authorid == author.id)
+            authorsdb.update({'authorNick': author.display_name, 'authorsAvatarUrl': str(author.avatar_url), 'instagram':instagram}, Query().authorid == authorid_str)
         if twitter!='':
-            authorsdb.update({'authorNick': author.display_name, 'authorsAvatarUrl': str(author.avatar_url), 'twitter':twitter}, Query().authorid == author.id)
+            authorsdb.update({'authorNick': author.display_name, 'authorsAvatarUrl': str(author.avatar_url), 'twitter':twitter}, Query().authorid == authorid_str)
         if steam!='':
-            authorsdb.update({'authorNick': author.display_name, 'authorsAvatarUrl': str(author.avatar_url), 'steam':steam}, Query().authorid == author.id)
+            authorsdb.update({'authorNick': author.display_name, 'authorsAvatarUrl': str(author.avatar_url), 'steam':steam}, Query().authorid == authorid_str)
     else:
-        authorsdb.insert({'authorNick': author.display_name,'authorid': author.id, 'authorsAvatarUrl': str(author.avatar_url), 'flickr': flickr, 'twitter':twitter, 'instagram':instagram, 'steam':steam, 'othersocials': socials}) #for discord id (name#042) you can save author directly, for the name before the # use author.name
+        authorsdb.insert({'authorNick': author.display_name,'authorid': authorid_str, 'authorsAvatarUrl': str(author.avatar_url), 'flickr': flickr, 'twitter':twitter, 'instagram':instagram, 'steam':steam, 'othersocials': socials}) #for discord id (name#042) you can save author directly, for the name before the # use author.name
 
 
 
@@ -434,7 +440,7 @@ async def writedbdawnoftime(message,gamename):
     elementid=len(shotsdb)+1
     score=await uniqueUsersReactions(message)
     score=len(list(score))
-    shotsdb.insert({'gameName': gamename, 'shotUrl': message.attachments[0].url, 'height': message.attachments[0].height, 'width': message.attachments[0].width, 'thumbnailUrl': thumbnail ,'author': message.author.id, 'date': message.created_at.strftime('%Y-%m-%dT%H:%M:%S.%f'), 'score': score, 'ID': elementid, 'epochTime': int(message.created_at.timestamp()), 'spoiler': message.attachments[0].is_spoiler(), 'colorName': closestClrName1})
+    shotsdb.insert({'gameName': gamename, 'shotUrl': message.attachments[0].url, 'height': message.attachments[0].height, 'width': message.attachments[0].width, 'thumbnailUrl': thumbnail ,'author': str(message.author.id), 'date': message.created_at.strftime('%Y-%m-%dT%H:%M:%S.%f'), 'score': score, 'ID': elementid, 'epochTime': int(message.created_at.timestamp()), 'spoiler': message.attachments[0].is_spoiler(), 'colorName': closestClrName1})
     
 
 
@@ -445,8 +451,9 @@ async def writedb(message,gamename):
     elementid=len(shotsdb)+1
     score=await uniqueUsersReactions(message)
     score=len(list(score))
-    shotsdb.insert({'gameName': gamename, 'shotUrl': message.attachments[0].url, 'height': message.attachments[0].height, 'width': message.attachments[0].width, 'thumbnailUrl': thumbnail ,'author': message.author.id, 'date': datetime.datetime.now().strftime('%Y-%m-%dT%H:%M:%S.%f'), 'score': score, 'ID': elementid, 'epochTime': int(datetime.datetime.now().timestamp()), 'spoiler': message.attachments[0].is_spoiler(), 'colorName': closestClrName1})
+    shotsdb.insert({'gameName': gamename, 'shotUrl': message.attachments[0].url, 'height': message.attachments[0].height, 'width': message.attachments[0].width, 'thumbnailUrl': thumbnail ,'author': str(message.author.id), 'date': datetime.datetime.now().strftime('%Y-%m-%dT%H:%M:%S.%f'), 'score': score, 'ID': elementid, 'epochTime': int(datetime.datetime.now().timestamp()), 'spoiler': message.attachments[0].is_spoiler(), 'colorName': closestClrName1})
     shotsdb.all()
+
 
 async def removeshotfromdb(message):
     q = Query()
@@ -666,6 +673,19 @@ async def on_ready():
         user = await bot.fetch_user(userid)
         await user.send("Message sent to open a DM channel for future DMs commands. Sorry for the inconvenience, send your complains to Nico I am just a bot beep beep boop.")
     """
+
+
+    #Update databases to use strings for users.ids
+    """
+    for author in authorsdb.all():
+        authorsdb.update({'authorid': str(author['authorid'])}, Query().authorid == author['authorid'])
+
+    for shot in shotsdb.all():
+        shotsdb.update({'author': str(shot['author'])}, Query().author == shot['author'])
+    """
+
+
+
     async for m in outputchannel.history(limit=10):
         if m.author == bot.user and m.embeds:
             date= m.created_at - timedelta(days = daystocheck)
@@ -673,7 +693,7 @@ async def on_ready():
             #await execqueuecommandssince(m.created_at)
             await updatesocials(m.created_at) #update socials since the last time the bot sent a message
             #await curationActive(date)
-            await startcurating() #never stops
+            #await startcurating() #never stops
             print("Sleeping...")
             break
 
@@ -718,6 +738,25 @@ async def async_filter(async_pred, iterable):
         if should_yield:
             yield item
 
+
+async def forceremovepost(id):
+    message = await inputchannel.fetch_message(id)
+    await removeshotfromdb(message)
+    print(f'removed it')
+    dbgitupdate()
+
+
+async def forceremoveauthor(id):
+    authorQuery = Query()
+    authorsMatching = authorsdb.search(authorQuery.authorNick==id)
+    if len(authorsMatching) > 0:
+        await removeshotsfromauthor(authorsMatching[0]['authorid'])
+        print('Author found, shots removed.')
+        dbgitupdate()
+    else:
+        print('Author not found.')
+
+
 #Doesnt seem to be working
 async def execqueuecommandssince(date):
     commands=[]
@@ -747,24 +786,6 @@ async def forcepost(id):
     else:
         await curateactionexternal(message)
         print(f'Nice shot bro')
-
-
-async def forceremovepost(id):
-	message = await inputchannel.fetch_message(id)
-	await removeshotfromdb(message)
-	print(f'removed it')
-	dbgitupdate()
-
-
-async def forceremoveauthor(id):
-    authorQuery = Query()
-    authorsMatching = authorsdb.search(authorQuery.authorNick==id)
-    if len(authorsMatching) > 0:
-        await removeshotsfromauthor(authorsMatching[0]['authorid'])
-        print('Author found, shots removed.')
-        dbgitupdate()
-    else:
-        print('Author not found.')
 
 
 #reads the messages since a number of days and post the accepted shots that havent been posted yet
@@ -840,12 +861,13 @@ class BotActions(commands.Cog):
     async def curationsince(self,ctx,d):
         await curationActive((datetime.datetime.now() - timedelta(days = int(d))))
 
+
     #ATTENTION: an id from a message that doesnt belongs to the inputchannel will crash the bot
     @commands.command(name='forcepost', help='Force the bot to curate a message regardless of the amount of reactions. ATTENTION: an id from a message that doesnt belongs to the inputchannel will crash the bot. Make sure to only force posts with an image or ONLY with an external image.url')
     async def forcepostcommand(self,ctx,id):
         await forcepost(id)
 
-    #ATTENTION: an id from a message that doesnt belongs to the inputchannel will crash the bot
+        #ATTENTION: an id from a message that doesnt belongs to the inputchannel will crash the bot
     @commands.command(name='forceremovepost', help='Force the bot to remove a shot that is posted in the message with the id specified. ATTENTION: an id from a message that doesnt belongs to the inputchannel will crash the bot. Make sure to only force posts with an image or ONLY with an external image.url')
     async def forceremovepostcommand(self, ctx, id):
         await forceremovepost(id)
@@ -854,7 +876,11 @@ class BotActions(commands.Cog):
     async def forceremoveauthor(self, ctx, id):
         await forceremoveauthor(id)
 
+
+
+
 bot.add_cog(BotActions())
+
 
 
 
