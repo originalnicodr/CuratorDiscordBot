@@ -80,8 +80,8 @@ def is_user_ignored(message):
     member= server.get_member(author.id)
     if member is None:
         return False
-    rols=map(lambda x: x.name,member.roles)
-    return "HOFBlocked" in rols or "Padawan" in rols
+    rols=list(map(lambda x: x.name,member.roles))
+    return ("HOFBlocked" in rols) or ("Padawan" in rols)
 
 async def ignore_bcs_emoji(message):
     if message.reactions==[]:
