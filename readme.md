@@ -9,7 +9,7 @@
   <a href="https://github.com/gitpython-developers/GitPython">
      <img src="https://img.shields.io/badge/gitPython-3.1.12-blue.svg" alt="discord.py"></a>
   <a href="https://github.com/python-pillow/Pillow">
-     <img src="https://img.shields.io/badge/pillow-8.1.0-blue.svg" alt="discord.py"></a>
+     <img src="https://img.shields.io/badge/pillow-8.3.2-blue.svg" alt="discord.py"></a>
   <a href="https://github.com/psf/requests">
      <img src="https://img.shields.io/badge/requests-2.22.0-blue.svg" alt="discord.py"></a>
   <a href="https://github.com/fengsp/color-thief-py">
@@ -21,7 +21,9 @@
  
 ## About
  
-CuratorBot is a bot dedicated to selecting the best screenshots from a channel and sending them to another channel. In addition, it uses discord as a host for a website and exports a couple of.json database files to a github repo (I don't like to pay for good hosting, sorry).
+CuratorBot is a bot dedicated to selecting the best screenshots from a channel and sending them to another channel. In addition, it uses discord as a host for a website and exports a couple of .json database files to a github repo (I don't like to pay for good hosting, sorry).
+
+You can see the site where the shots are being shown [here](framedsc.github.io/HallOfFramed) and read more about the process involving making this bot in my [blog post](https://originalnicodr.pythonanywhere.com/blog/1/).
  
 Since I made this for a server I am in, it has a lot of assumptions, like searching for a message with text around the screenshot message if this one has no text specifying the game, so I apologise for it.
  

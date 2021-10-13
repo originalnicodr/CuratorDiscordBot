@@ -704,7 +704,7 @@ async def on_ready():
 
 @bot.event
 async def on_message(message):
-    if (message.channel is discord.TextChannel and message.channel.name == 'share-your-socials'):
+    if (message.channel.name == 'share-your-socials'): #message.channel is discord.channel.TextChannel #dont know what this isnt working
         addsocials(message)
         dbgitupdate()
     else:
