@@ -23,13 +23,13 @@
  
 CuratorBot is a bot dedicated to selecting the best screenshots from a channel and sending them to another channel. In addition, it uses discord as a host for a website and exports a couple of .json database files to a github repo (I don't like to pay for good hosting, sorry).
 
-You can see the site where the shots are being shown [here](framedsc.github.io/HallOfFramed) and read more about the process involving making this bot in my [blog post](https://originalnicodr.pythonanywhere.com/blog/1/).
+You can see the site where the shots are being shown [here](framedsc.github.io/HallOfFramed) and read more about the process involving making this bot in my [blog post](https://originalnicodr.github.io/blog/how-we-made-a-high-quality-image-gallery-without-paying-a-single-dime).
  
-Since I made this for a server I am in, it has a lot of assumptions, like searching for a message with text around the screenshot message if this one has no text specifying the game, so I apologise for it.
+Since I made this for a server I am in, it has a lot of assumptions, like searching for a message with text around the screenshot message if this one has no text specifying the game, so keep that in mind when hosting your own version of the bot.
  
 <p align="center"><img src="https://user-images.githubusercontent.com/24371572/104781820-eb88fe00-5761-11eb-91d0-6daf4448ebad.png">
  
-The bot puts every curated shot link in a .json file, creates a thumbnail which is also uploaded to discord and includes it in said .json file and pushes it to a github repo, so the file can be used as a database for a website showing the screenshots and the bot as an updater for said database.
+The bot puts every curated shot link in a .json file, creates a thumbnail which is also uploaded to discord and includes it in said .json file and pushes it to a github repo, so the file can be used as a database for the HallofFramed website, showing the screenshots.
  
 It also creates a database of authors that includes a lot of useful information. This authors database gets updated every time a shot gets accepted into the shots database and every time a message is sent to the socials channel by adding (or updating) the authors information.
  
@@ -143,6 +143,4 @@ The "authorsNick" is the lastes nick retrieved of the user, the "authorid" is th
  
 ## Final notes
  
-I made this bot in a free week that I had and it kinda grew up from there. Unfortunately I don't have time at the moment to learn front-end programming to make a website showing the shots. Hopefully someone will make one and I will be sure to include a link here whenever that happens.
- 
-I apologize that I didn't write the bot so everyone can use the one I am hosting. Hopefully the code and explanation here are enough for setting it up yourself, and if not I hope at least you learned something from it. I know I did.
+I made this bot in a free week that I had and it kinda grew up from there. I apologize that I didn't write the bot so everyone can use the one I am hosting. Hopefully the code and explanation here are enough for setting it up yourself, and if not I hope at least you learned something from it. I know I did.
