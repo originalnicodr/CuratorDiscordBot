@@ -111,12 +111,12 @@ The .json file generated, modified, and pushed by the bot follows a structure th
 ```
  
  
-The "score" field represents the number of unique users reacting to the shot, acting as a measure of its popularity. This value will be updated when the bot runs the reaction checks.
-The "date" field follows the format `Year`-`Month`-`Day`T`Hour`:`Minute`:`Second`.`Millisecond` and indicates the date and time the shot was curated.
-The "ID" value is the value the tinyDB assigns to the element of the structure being described and the epochTime is the epoch time of the shot. Both can be used to iterate and sort, but I would say the latter one is more reliable.
-The "author" value is the authorid used in the authors DB.
-The "colorName" field holds the name of the most prominent color in the shot, which can be useful for color-based searches or other related functionalities.
-The "spoiler" field indicates whether the shot is tagged as a spoiler or contains NSFW content, allowing for appropriate handling when displaying the shot on the gallery or other platforms.
+- The "score" field represents the number of unique users reacting to the shot, acting as a measure of its popularity. This value will be updated when the bot runs the reaction checks.
+- The "date" field follows the format `Year`-`Month`-`Day`T`Hour`:`Minute`:`Second`.`Millisecond` and indicates the date and time the shot was curated.
+- The "ID" value is the value the tinyDB assigns to the element of the structure being described and the epochTime is the epoch time of the shot. Both can be used to iterate and sort, but I would say the latter one is more reliable.
+- The "author" value is the authorid used in the authors DB.
+- The "colorName" field holds the name of the most prominent color in the shot, which can be useful for color-based searches or other related functionalities.
+- The "spoiler" field indicates whether the shot is tagged as a spoiler or contains NSFW content, allowing for appropriate handling when displaying the shot on the gallery or other platforms.
 
  
 ### Authors DB
