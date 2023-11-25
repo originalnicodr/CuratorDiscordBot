@@ -4,12 +4,15 @@
 DEBUG = True
 
 import os
+import shutil
 from dotenv import load_dotenv
 
 import discord
 from discord.ext import tasks, commands
 
 from discord import app_commands
+
+from b2sdk.v2 import B2Api, InMemoryAccountInfo
 
 import datetime
 from datetime import timedelta
@@ -43,8 +46,13 @@ import re
 # --------------------Enviroment variables--------
 if DEBUG:
     load_dotenv()
-    TOKEN = os.getenv("DISCORD_TOKEN")
-    GIT_TOKEN = os.getenv("GIT_TOKEN")
+    TOKEN = os.environ.get("DISCORD_TOKEN")
+    GIT_TOKEN = os.environ.get("GIT_TOKEN")
+
+    BACKBLAZE_KEY = os.environ.get("BACKBLAZE_KEY")
+    BACKBLAZE_KEY_ID = os.environ.get("BACKBLAZE_KEY_ID")
+    BACKBLAZE_HOF_FOLDER_NAME = os.environ.get("BACKBLAZE_HOF_FOLDER_NAME")
+    BACKBLAZE_BUCKET_NAME = os.environ.get("BACKBLAZE_BUCKET_NAME")
 else:
     load_dotenv()
     # TOKEN = os.getenv('DISCORD_TOKEN')
@@ -60,6 +68,14 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 
 client = discord.Client(intents=discord.Intents.default(), max_messages=None)
 tree_cls = app_commands.CommandTree(client)
+
+# ------------Backblaze Auth-------------
+
+info = InMemoryAccountInfo()
+b2_api = B2Api(info)
+application_key_id = BACKBLAZE_KEY_ID
+application_key = BACKBLAZE_KEY
+b2_api.authorize_account("production", application_key_id, application_key)
 
 # ------------Constants-----------------
 
@@ -142,7 +158,7 @@ def delete_websiterepo_folder():
     directory = os.getcwd()
     file_path = directory + "\websiterepo"
     if os.path.exists(file_path):
-        os.remove(file_path)
+        shutil.rmtree(file_path)
         print("Deleted websiterepo folder succesfully.")
 
 
@@ -154,7 +170,7 @@ def delete_websiterepo_folder():
 websiterepourl = f"https://originalnicodrgitbot:{GIT_TOKEN}@github.com/originalnicodrgitbot/hall-of-framed-db.git"
 websiterepofolder = "websiterepo"
 
-delete_websiterepo_folder()
+#delete_websiterepo_folder()
 repo = Repo.clone_from(websiterepourl, websiterepofolder)
 assert repo.__class__ is Repo
 
@@ -349,14 +365,8 @@ sizelimit = 400  # discord standar
 thumbnailchannel = None
 
 
-async def createthumbnail(message):
-    response = requests.get(message.attachments[0].url, stream=True)
-    response.raw.decode_content = True
-    shot = Image.open(response.raw)
-
-    h = message.attachments[0].height
-    w = message.attachments[0].width
-    ar = w / h
+def createthumbnail(shot, shot_filename):
+    ar = shot.width / shot.height
 
     # Discord method
     """
@@ -373,12 +383,13 @@ async def createthumbnail(message):
 
     # filter algorithms
     # Image.NEAREST, Image.BILINEAR, Image.BICUBIC, Image.ANTIALIAS
-    shot = shot.resize((wt, ht), Image.BICUBIC)
+    thumbnail_shot = shot.resize((wt, ht), Image.BICUBIC)
 
-    shot.save("thumbnailtemp.jpg", quality=95)
-    dominantColor, colorPalette = getColor("thumbnailtemp.jpg")
-    thumbnail = await thumbnailchannel.send(file=discord.File("thumbnailtemp.jpg"))
-    return thumbnail.attachments[0].url, dominantColor, colorPalette
+    shot_filename_without_extension = os.path.splitext(shot_filename)[0]
+    thumbnail_file_name = f"thumbnail_{shot_filename_without_extension}.jpg"
+    thumbnail_shot.save(thumbnail_file_name, quality=95)
+
+    return Image.open(thumbnail_file_name), thumbnail_file_name
 
 
 # --------------------------------------------------------
@@ -568,11 +579,12 @@ def completeCuration(message):
 
 
 # ------------Curation action functions--------------
-async def postembed(message, gamename):
+async def postembed(message, shot_filename, gamename):
     embed = discord.Embed(
         title=gamename, description=f"[Message link]({message.jump_url})"
     )
     embed.set_image(url=message.attachments[0].url)
+    embed.set_image(url=f"attachment://{shot_filename}")
     embed.set_author(
         name=f"Shot by {message.author}", icon_url=message.author.avatar.url
     )
@@ -580,41 +592,27 @@ async def postembed(message, gamename):
     # embed.set_thumbnail(url=message.author.avatar.url)
     embed.set_footer(text=f"{message.created_at}")
 
-    await outputchannel.send(embed=embed)
+    file = discord.File(shot_filename)
+    await outputchannel.send(file=file, embed=embed)
 
+async def upload_to_backblaze(local__filename, upload_filename, folder):
+    b2_file_name = f'{BACKBLAZE_HOF_FOLDER_NAME}/{folder}/{upload_filename}'
 
-async def writedbdawnoftime(message, gamename):
-    thumbnail, dominantColor, colorPalette = await createthumbnail(
-        message
-    )  # link of the thumbnail
-    colorName1, closestClrName1 = get_colour_name(dominantColor, colorPalette)
-    elementid = len(shotsdb) + 1
-    score = await uniqueUsersReactions(message)
-    score = len(list(score))
-    shotsdb.insert(
-        {
-            "gameName": gamename,
-            "shotUrl": message.attachments[0].url,
-            "height": message.attachments[0].height,
-            "width": message.attachments[0].width,
-            "thumbnailUrl": thumbnail,
-            "author": str(message.author.id),
-            "date": message.created_at.strftime("%Y-%m-%dT%H:%M:%S.%f"),
-            "score": score,
-            "ID": elementid,
-            "epochTime": int(message.created_at.timestamp()),
-            "spoiler": message.attachments[0].is_spoiler(),
-            "colorName": closestClrName1,
-            "message_id": message.id,
-        }
-    )
+    bucket = b2_api.get_bucket_by_name(BACKBLAZE_BUCKET_NAME)
+    bucket.upload_local_file(
+            local_file=local__filename,
+            file_name=b2_file_name,
+        )
 
+def downloadImage(message):
+    response = requests.get(message.attachments[0].url, stream=True)
+    response.raw.decode_content = True
+    shot = Image.open(response.raw)
+    shot.save(message.attachments[0].filename, quality=95)
+    return shot, message.attachments[0].filename
 
 # instead of using the date of the message it uses the actual time, that way if you sort by new in the future website, the new shots would always be on top, instead of getting mixed
-async def writedb(message, gamename):
-    thumbnail, dominantColor, colorPalette = await createthumbnail(
-        message
-    )  # link of the thumbnail
+async def writedb(message, upload_filename, gamename, dominantColor, colorPalette, post_time):
     colorName1, closestClrName1 = get_colour_name(dominantColor, colorPalette)
     elementid = len(shotsdb) + 1
     score = await uniqueUsersReactions(message)
@@ -622,15 +620,15 @@ async def writedb(message, gamename):
     shotsdb.insert(
         {
             "gameName": gamename,
-            "shotUrl": message.attachments[0].url,
+            "shotUrl": f'https://cdn.framedsc.com/images/{upload_filename}',
             "height": message.attachments[0].height,
             "width": message.attachments[0].width,
-            "thumbnailUrl": thumbnail,
+            "thumbnailUrl": f'https://cdn.framedsc.com/thumbnails/{upload_filename}',
             "author": str(message.author.id),
-            "date": datetime.datetime.now(tz=pytz.UTC).strftime("%Y-%m-%dT%H:%M:%S.%f"),
+            "date": post_time.strftime("%Y-%m-%dT%H:%M:%S.%f"),
             "score": score,
             "ID": elementid,
-            "epochTime": int(datetime.datetime.now(tz=pytz.UTC).timestamp()),
+            "epochTime": int(post_time.timestamp()),
             "spoiler": message.attachments[0].is_spoiler(),
             "colorName": closestClrName1,
             "message_id": message.id,
@@ -638,20 +636,11 @@ async def writedb(message, gamename):
     )
     shotsdb.all()
 
-
-async def removeshotfromdb(ctx, message):
-    dbEntry = shotsdb.search(Query().shotUrl == message.attachments[0].url)[0]
-    shotsdb.remove(Query().shotUrl == message.attachments[0].url)
-    shotsdb.all()
-    await ctx.channel.send(
-        content=f"Entry deleted \n<{siteLink}?imageId={str(dbEntry['epochTime'])}>"
-    )
-
-
-async def removeshotsfromauthor(authorid):
+async def removeshotsfromauthor(ctx, authorid):
     q = Query()
-    shotsdb.remove(q.author == authorid)
-    shotsdb.all()
+    authors_shots = shotsdb.search(q.author == authorid)
+    for shot in authors_shots:
+        forceremovepost(ctx, shot.epochTime)
 
 
 # ----------------------------------------------------
@@ -672,74 +661,44 @@ def to_thread(func: typing.Callable) -> typing.Coroutine:
 
 # ----------------------------------------------------
 
-
-async def curateaction(message):
+# post_time is now for new posts, or message.created_at for historical curation
+async def maybePushToHof(message, post_time):
     if is_user_ignored(message):
         print("User ignored")
         return
     if await ignore_bcs_emoji(message):
         print("Shot ignored because of emoji")
         return
+    pushToHof(message, post_time)
+
+async def pushToHof(message, post_time):
     gamename = await getgamename(message)
-    await writedb(message, gamename)
-    await postembed(message, gamename)
+    shot, shot_filename = downloadImage(message)
+    thumbnail, thumbnail_filename = createthumbnail(shot, shot_filename)
+    # We append the epoch time to avoid collisions between shots
+    upload_filename = f'{int(post_time.timestamp())}_{shot_filename}'
+    
+    if not DEBUG:
+        await upload_to_backblaze(shot_filename, upload_filename, 'images')
+        await upload_to_backblaze(thumbnail_filename, upload_filename, 'thumbnails')
+
+    dominantColor, colorPalette = getColor(shot_filename)
+    await writedb(message, upload_filename, gamename, dominantColor, colorPalette, post_time)
+    # If the server is not boosted and the shot is bigger than the max free size uploading the shot for
+    # using in the embed might cause troubles. In that case, switch to thumbnail.
+    await postembed(message, shot_filename, gamename)
     authorsdbupdate(message.author)
+
+    #delete local files after upload
+    del shot
+    del thumbnail
+    os.remove(shot_filename)
+    os.remove(thumbnail_filename)
+
     if not DEBUG:
         dbgitupdate()
-
-
-async def curateactionforce(message):
-    gamename = await getgamename(message)
-    await writedb(message, gamename)
-    await postembed(message, gamename)
-    authorsdbupdate(message.author)
-    if not DEBUG:
-        dbgitupdate()
-
-
-async def curateactiondawnoftime(message):
-    if is_user_ignored(message):
-        print("User ignored")
-        return
-    gamename = await getgamename(message)
-    await postembed(message, gamename)
-    await writedbdawnoftime(message, gamename)
-    authorsdbupdate(message.author)
 
     # ----------------For forcing post actions-------------------
-
-
-async def postembedexternal(message, gamename):
-    embed = discord.Embed(
-        title=gamename, description=f"[Message link]({message.jump_url})"
-    )
-    embed.set_image(url=message.content)
-    embed.set_author(
-        name=f"Shot by {message.author}", icon_url=message.author.avatar.url
-    )
-    # embed.set_author(name= f'Shot by {message.author}')
-    # embed.set_thumbnail(url=message.author.avatar.url)
-    embed.set_footer(text=f"{message.created_at}")
-
-    await outputchannel.send(embed=embed)
-
-
-# external shots wont be added to the page
-"""
-async def writedbexternal(message,gamename):
-    #if message.author.id in ignoredusers:
-    shotsdb.insert({'gameName': gamename, 'shotUrl': message.content, 'author': message.author.name, 'authorsAvatarUrl': str(message.author.avatar.url), 'date': message.created_at.strftime('%Y-%m-%dT%H:%M:%S.%f'), 'score': max(map(lambda m: m.count,message.reactions))})
-"""
-
-
-async def curateactionexternal(message):
-    # await writedbexternal(message,'')
-    # if is_user_ignored(message):
-    #   return
-    await postembedexternal(message, "")
-
-    # --------------------------------------------------------
-
 
 # ----------------------------------------------------
 
@@ -820,7 +779,7 @@ def creationDateCheck(message):
 
 
 def getColor(fileName):
-    color_thief = ColorThief(fileName)
+    color_thief = ColorThief(f'{fileName}')
     """
     quality settings, 1 is the highest quality, the bigger
     the number, the faster a color will be returned but
@@ -932,21 +891,28 @@ async def on_ready():
 
     print("running!")
 
-    m = await outputchannel.history(limit=1).__anext__()
-    print(m)
-    if (m.author == bot.user and m.embeds) or DEBUG:
-        last_curation_date = m.created_at - timedelta(days=daystocheck)
-        print(m.created_at)
-        # client = discord.Client(intents=discord.Intents.default(), max_messages=None)
-        # await execqueuecommandssince(m.created_at)
-        if DEBUG:
-            startcurating.start(last_curation_date)
-        else:
-            # client.loop.create_task(curationActive(last_curation_date))
-            startcurating.start(last_curation_date)
-            await updatesocials(
-                m.created_at
-            )  # update socials since the last time the bot sent a message
+    if DEBUG:
+
+        #https://discord.com/channels/549986543650078722/549986930071175169/1177974660432932884
+        message = await inputchannel.fetch_message(1177974660432932884)
+        await pushToHof(message, datetime.datetime.now(tz=pytz.UTC))
+
+    else:
+        m = await outputchannel.history(limit=1).__anext__()
+        print(m)
+        if (m.author == bot.user and m.embeds) or DEBUG:
+            last_curation_date = m.created_at - timedelta(days=daystocheck)
+            print(m.created_at)
+            # client = discord.Client(intents=discord.Intents.default(), max_messages=None)
+            # await execqueuecommandssince(m.created_at)
+            if DEBUG:
+                startcurating.start(last_curation_date)
+            else:
+                # client.loop.create_task(curationActive(last_curation_date))
+                startcurating.start(last_curation_date)
+                await updatesocials(
+                    m.created_at
+                )  # update socials since the last time the bot sent a message
 
 
 @tasks.loop(seconds=5)
@@ -1048,12 +1014,20 @@ async def async_filter(async_pred, iterable):
 async def forceremovepost(ctx, id: int):
     try:
         dbEntry = shotsdb.search(Query().epochTime == int(id))[0]
+
+        shot_filename = dbEntry.shotUrl.rsplit('/', 1)
+
         shotsdb.remove(Query().epochTime == int(id))
         shotsdb.all()
         await ctx.channel.send(
             content=f"Entry deleted \n<{siteLink}?imageId={str(dbEntry['epochTime'])}>"
         )
         if not DEBUG:
+            shot_file = b2_api.get_file_info_by_name(BACKBLAZE_BUCKET_NAME, f'{BACKBLAZE_HOF_FOLDER_NAME}/images/{shot_filename}')
+            shot_file.delete()
+
+            thumbnail_file = b2_api.get_file_info_by_name(BACKBLAZE_BUCKET_NAME, f'{BACKBLAZE_HOF_FOLDER_NAME}/thumbnails/{shot_filename}')
+            thumbnail_file.delete()
             dbgitupdate()
     except:
         await ctx.channel.send(content="Error: Shot not found")
@@ -1109,11 +1083,11 @@ async def execqueuecommandssince(date):
 async def forcepost(ctx, id: int):
     message = await inputchannel.fetch_message(id)
     if message.attachments:
-        await curateactionforce(message)  # so it uses the date of the screenshot
+        await pushToHof(message, datetime.datetime.now(tz=pytz.UTC))  # so it uses the date of the screenshot
         print(f"Nice shot bro")
     else:
-        await curateactionexternal(message)
-        print(f"Nice shot bro")
+        #TODO: Support adding external links upload
+        print(f"Cant post shot, its not uploaded to discord.")
 
 
 # reads the messages since a number of days and post the accepted shots that havent been posted yet
@@ -1161,7 +1135,7 @@ async def curationActive(d):
                 m
             )  # it would be faster if we could filter the listcandidates instead of doing this, right?
             if check:
-                await curateaction(m)
+                await maybePushToHof(m, datetime.datetime.now(tz=pytz.UTC))
                 print(f"Nice shot bro")
 
         # Continue with the normal curation after the initial one is done.
@@ -1211,7 +1185,7 @@ async def curate_last_chance_old(daysBehind):
         check = await lastChanceUniqueUsersCuration(m)
         if check:
             if is_shot_already_posted(m):
-                await curateaction(m)
+                await maybePushToHof(m, datetime.datetime.now(tz=pytz.UTC))
                 print("Nice shot bro")
             else:
                 print("Already posted")
@@ -1245,10 +1219,10 @@ async def curate_last_chance(daysBehind, window_of_days):
     lastChanceModifier = 0.75
     if messageWithReactions[0][1] > reactiontrigger * lastChanceModifier:
         print(messageWithReactions[0][1])
-        await curateaction(messageWithReactions[0][0])
+        await maybePushToHof(messageWithReactions[0][0], datetime.datetime.now(tz=pytz.UTC))
     # if(messageWithReactions[1][1] > reactiontrigger*lastChanceModifier):
     #    print(messageWithReactions[1][1])
-    #    await curateaction(messageWithReactions[1][0])
+    #    await maybePushToHof(messageWithReactions[1][0], datetime.datetime.now(tz=pytz.UTC))
 
 
 def is_shot_already_posted(message):
