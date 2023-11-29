@@ -44,22 +44,17 @@ import re
 # -----------------------------------------------
 
 # --------------------Enviroment variables--------
-if DEBUG:
-    load_dotenv()
-    TOKEN = os.environ.get("DISCORD_TOKEN")
-    GIT_TOKEN = os.environ.get("GIT_TOKEN")
+load_dotenv()
+TOKEN = os.environ.get("DISCORD_TOKEN")
+GIT_TOKEN = os.environ.get("GIT_TOKEN")
 
-    BACKBLAZE_KEY = os.environ.get("BACKBLAZE_KEY")
-    BACKBLAZE_KEY_ID = os.environ.get("BACKBLAZE_KEY_ID")
-    BACKBLAZE_HOF_FOLDER_NAME = os.environ.get("BACKBLAZE_HOF_FOLDER_NAME")
-    BACKBLAZE_BUCKET_NAME = os.environ.get("BACKBLAZE_BUCKET_NAME")
-else:
-    load_dotenv()
-    # TOKEN = os.getenv('DISCORD_TOKEN')
-    # GIT_TOKEN= os.getenv('GIT_TOKEN')
+BACKBLAZE_KEY = os.environ.get("BACKBLAZE_KEY")
+BACKBLAZE_KEY_ID = os.environ.get("BACKBLAZE_KEY_ID")
+BACKBLAZE_HOF_FOLDER_NAME = os.environ.get("BACKBLAZE_TEST_FOLDER_NAME") if DEBUG else os.environ.get("BACKBLAZE_HOF_FOLDER_NAME")
+BACKBLAZE_BUCKET_NAME = os.environ.get("BACKBLAZE_BUCKET_NAME")
 
-    TOKEN = os.environ.get("DISCORD_TOKEN", None)
-    GIT_TOKEN = os.environ.get("GIT_TOKEN")
+# TOKEN = os.getenv('DISCORD_TOKEN')
+# GIT_TOKEN= os.getenv('GIT_TOKEN')
 # -----------------------------------------------
 
 intents = discord.Intents.default()
@@ -669,7 +664,7 @@ async def maybePushToHof(message, post_time):
     if await ignore_bcs_emoji(message):
         print("Shot ignored because of emoji")
         return
-    pushToHof(message, post_time)
+    await pushToHof(message, post_time)
 
 async def pushToHof(message, post_time):
     gamename = await getgamename(message)
@@ -893,9 +888,13 @@ async def on_ready():
 
     if DEBUG:
 
-        #https://discord.com/channels/549986543650078722/549986930071175169/1177974660432932884
-        message = await inputchannel.fetch_message(1177974660432932884)
-        await pushToHof(message, datetime.datetime.now(tz=pytz.UTC))
+        m = await outputchannel.history(limit=1).__anext__()
+        print(m)
+        last_curation_date = m.created_at - timedelta(days=daystocheck)
+        print(m.created_at)
+        # client = discord.Client(intents=discord.Intents.default(), max_messages=None)
+        # await execqueuecommandssince(m.created_at)
+        startcurating.start(last_curation_date)
 
     else:
         m = await outputchannel.history(limit=1).__anext__()
@@ -1228,13 +1227,8 @@ async def curate_last_chance(daysBehind, window_of_days):
 def is_shot_already_posted(message):
     if len(message.attachments) == 0:
         return False
-    
-    # Discord has been changing the URL of shots by appending it with extra stuff, so instead of checking if a shot URL is already in the DB, we check if one URL is 'in' another.
-    is_same_shot = lambda shotUrl: shotUrl.split('?')[0] == message.attachments[0].url.split('?')[0]
-    # test_func = lambda shotUrl: shotUrl in message.attachments[0].url or message.attachments[0].url in shotUrl
-    shot = shotsdb.search(Query().shotUrl.test(is_same_shot))
-    #shot = shotsdb.search(Query().shotUrl in message.attachments[0].url or message.attachments[0].url in Query().shotUrl)
-    return len(shot) > 0
+    found_shots = shotsdb.search(Query().message_id == message.id)
+    return len(found_shots) > 0
 
 
 # --------------------------------------------------
