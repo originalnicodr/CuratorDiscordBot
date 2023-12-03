@@ -635,7 +635,7 @@ async def removeshotsfromauthor(ctx, authorid):
     q = Query()
     authors_shots = shotsdb.search(q.author == authorid)
     for shot in authors_shots:
-        forceremovepost(ctx, shot.epochTime)
+        forceremovepost(ctx, shot['epochTime'])
 
 
 # ----------------------------------------------------
@@ -887,14 +887,7 @@ async def on_ready():
     print("running!")
 
     if DEBUG:
-
-        m = await outputchannel.history(limit=1).__anext__()
-        print(m)
-        last_curation_date = m.created_at - timedelta(days=daystocheck)
-        print(m.created_at)
-        # client = discord.Client(intents=discord.Intents.default(), max_messages=None)
-        # await execqueuecommandssince(m.created_at)
-        startcurating.start(last_curation_date)
+        pass
 
     else:
         m = await outputchannel.history(limit=1).__anext__()
@@ -1013,21 +1006,23 @@ async def async_filter(async_pred, iterable):
 async def forceremovepost(ctx, id: int):
     try:
         dbEntry = shotsdb.search(Query().epochTime == int(id))[0]
-
-        shot_filename = dbEntry.shotUrl.rsplit('/', 1)
+        shot_filename = dbEntry['shotUrl'].rsplit('/', 1)[1]
 
         shotsdb.remove(Query().epochTime == int(id))
         shotsdb.all()
-        await ctx.channel.send(
-            content=f"Entry deleted \n<{siteLink}?imageId={str(dbEntry['epochTime'])}>"
-        )
+
         if not DEBUG:
             shot_file = b2_api.get_file_info_by_name(BACKBLAZE_BUCKET_NAME, f'{BACKBLAZE_HOF_FOLDER_NAME}/images/{shot_filename}')
             shot_file.delete()
-
-            thumbnail_file = b2_api.get_file_info_by_name(BACKBLAZE_BUCKET_NAME, f'{BACKBLAZE_HOF_FOLDER_NAME}/thumbnails/{shot_filename}')
+            
+            shot_filename_without_extension = os.path.splitext(shot_filename)[0]
+            thumbnail_file = b2_api.get_file_info_by_name(BACKBLAZE_BUCKET_NAME, f'{BACKBLAZE_HOF_FOLDER_NAME}/thumbnails/{shot_filename_without_extension}.jpg')
             thumbnail_file.delete()
             dbgitupdate()
+
+        await ctx.channel.send(
+            content=f"Entry deleted \n<{siteLink}?imageId={str(dbEntry['epochTime'])}>"
+        )
     except:
         await ctx.channel.send(content="Error: Shot not found")
 
