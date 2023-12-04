@@ -974,11 +974,9 @@ async def command_is_shot_already_posted(ctx, id: int):
 async def command_update_socials(ctx):
     global socialschannel
 
-    start_of_channel = datetime.datetime(year=2020, month=8, day=1)
-
     socialsMessage = None
 
-    async for message in socialschannel.history(after=start_of_channel):
+    async for message in socialschannel.history(limit=None):
         if message.author.id == ctx.author.id:
             socialsMessage = message
             break
