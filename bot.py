@@ -200,6 +200,19 @@ async def dbreactionsupdate(message):
 # -------------------Authors DB integration--------------------
 
 
+known_socials = [
+    "artstation",
+    "bsky",
+    "flickr", 
+    "instagram", 
+    "picashot",
+    "steam", 
+    "tumblr",
+    "twitter",
+    "x.com",
+    "youtube",
+]
+
 def authorsdbupdate(author):
     authorid_str = str(author.id)
     print(f"author {author.name}")
@@ -243,97 +256,27 @@ def addsocials(message):  # the message is the social media message
     print(message.content)
     socials = FindUrls(message.content)
 
-    flickr = ""
-    instagram = ""
-    steam = ""
-    twitter = ""
+    author_map = {
+        "authorNick": author.display_name,
+        "authorsAvatarUrl": str(author.avatar.url),
+    }
 
-    # Awful way of doing this, please dont judge
+    for key in known_socials:
+        for url in socials:
+            if key in url:
+                author_map[key] = url
+                socials.remove(url)
+                break
 
-    for url in socials:
-        if "flickr" in url:
-            flickr = url
-            socials.remove(url)
-            break
-
-    for url in socials:
-        if "instagram" in url:
-            instagram = url
-            socials.remove(url)
-            break
-
-    for url in socials:
-        if "steam" in url:
-            steam = url
-            socials.remove(url)
-            break
-
-    for url in socials:
-        if "twitter" in url:
-            twitter = url
-            socials.remove(url)
-            break
-
+    author_map["othersocials"] = socials
     authorid_str = str(author.id)
 
     if authorsdb.search(Query().authorid == authorid_str) != []:
-        authorsdb.update(
-            {
-                "authorNick": author.display_name,
-                "authorsAvatarUrl": str(author.avatar.url),
-                "othersocials": socials,
-            },
-            Query().authorid == authorid_str,
-        )  # avatar and nick update
-        if flickr != "":
-            authorsdb.update(
-                {
-                    "authorNick": author.display_name,
-                    "authorsAvatarUrl": str(author.avatar.url),
-                    "flickr": flickr,
-                },
-                Query().authorid == authorid_str,
-            )
-        if instagram != "":
-            authorsdb.update(
-                {
-                    "authorNick": author.display_name,
-                    "authorsAvatarUrl": str(author.avatar.url),
-                    "instagram": instagram,
-                },
-                Query().authorid == authorid_str,
-            )
-        if twitter != "":
-            authorsdb.update(
-                {
-                    "authorNick": author.display_name,
-                    "authorsAvatarUrl": str(author.avatar.url),
-                    "twitter": twitter,
-                },
-                Query().authorid == authorid_str,
-            )
-        if steam != "":
-            authorsdb.update(
-                {
-                    "authorNick": author.display_name,
-                    "authorsAvatarUrl": str(author.avatar.url),
-                    "steam": steam,
-                },
-                Query().authorid == authorid_str,
-            )
+        authorsdb.update(author_map, Query().authorid == authorid_str)  # avatar and nick update
     else:
-        authorsdb.insert(
-            {
-                "authorNick": author.display_name,
-                "authorid": authorid_str,
-                "authorsAvatarUrl": str(author.avatar.url),
-                "flickr": flickr,
-                "twitter": twitter,
-                "instagram": instagram,
-                "steam": steam,
-                "othersocials": socials,
-            }
-        )  # for discord id (name#042) you can save author directly, for the name before the # use author.name
+        author_map["authorid"] = authorid_str
+        # for discord id (name#042) you can save author directly, for the name before the # use author.name
+        authorsdb.insert(author_map)  
 
 
 async def historicsocials():
