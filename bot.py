@@ -66,17 +66,18 @@ tree_cls = app_commands.CommandTree(client)
 
 # ------------Backblaze Auth-------------
 
-info = InMemoryAccountInfo()
-b2_api = B2Api(info)
-application_key_id = BACKBLAZE_KEY_ID
-application_key = BACKBLAZE_KEY
-b2_api.authorize_account("production", application_key_id, application_key)
+if not DEBUG:
+    info = InMemoryAccountInfo()
+    b2_api = B2Api(info)
+    application_key_id = BACKBLAZE_KEY_ID
+    application_key = BACKBLAZE_KEY
+    b2_api.authorize_account("production", application_key_id, application_key)
 
 # ------------Constants-----------------
 
 # For basicCuration
 # Updated in the startcurating() loop and on the on_ready() event, comment those lines if you dont want this value to get modified
-reactiontrigger = 30
+reactiontrigger = 28
 
 daystocheck = 7  # the maximun age of the messages to check
 
@@ -234,11 +235,7 @@ def authorsdbupdate(author):
                 "authorNick": author.display_name,
                 "authorid": authorid_str,
                 "authorsAvatarUrl": str(author.avatar.url),
-                "flickr": "",
-                "twitter": "",
-                "instagram": "",
-                "steam": "",
-                "othersocials": "",
+                "socials": []
             }
         )  # for discord id (name#042) you can save author directly, for the name before the # use author.name
 
@@ -256,25 +253,18 @@ def addsocials(message):  # the message is the social media message
     print(message.content)
     socials = FindUrls(message.content)
 
-    author_map = {
-        "authorNick": author.display_name,
-        "authorsAvatarUrl": str(author.avatar.url),
-    }
-
-    for key in known_socials:
-        for url in socials:
-            if key in url:
-                author_map[key] = url
-                socials.remove(url)
-                break
-
-    author_map["othersocials"] = socials
     authorid_str = str(author.id)
 
+    author_map = {
+        "authorNick": author.display_name,
+        "authorid": authorid_str,
+        "authorsAvatarUrl": str(author.avatar.url),
+        "socials": socials
+    }
+
     if authorsdb.search(Query().authorid == authorid_str) != []:
-        authorsdb.update(author_map, Query().authorid == authorid_str)  # avatar and nick update
+        authorsdb.update(author_map, Query().authorid == authorid_str)
     else:
-        author_map["authorid"] = authorid_str
         # for discord id (name#042) you can save author directly, for the name before the # use author.name
         authorsdb.insert(author_map)  
 
@@ -755,33 +745,11 @@ def get_colour_name(requested_colour, colorPalette):
 
 # ----------These are divided in two functions to filter between channels (security messure)--------
 
-
-# DONT CHANGE
-# necesary for thumbnailchannel
-def getchannelo(channelname):  # not the best method to do this tho
-    # print(list(discord.Client.guilds))
-
+def getchannel(channelname):
+    server_name = 'BotTest' if DEBUG else 'FRAMED - Screenshot Community'
     for g in bot.guilds:
-        # if g.name== 'FRAMED - Screenshot Community':
-        if g.name == "BotTest":
+        if g.name == server_name:
             return discord.utils.get(g.channels, name=channelname)
-
-
-def getchanneli(channelname):  # not the best method to do this tho
-    # print(list(discord.Client.guilds))
-
-    for g in bot.guilds:
-        # if g.name== 'BotTest':
-        if g.name == "FRAMED - Screenshot Community":
-            return discord.utils.get(g.channels, name=channelname)
-
-
-def get_framed_server():
-    for s in bot.guilds:
-        # if g.name== 'BotTest':
-        if s.name == "FRAMED - Screenshot Community":
-            return s
-
 
 # -------------------------------------------------------------------------------------------------
 
@@ -796,12 +764,12 @@ async def on_ready():
     global thumbnailchannel
     global socialschannel
     print(f"{bot.user.name} has connected to Discord!")
-    inputchannel = getchanneli("share-your-shot")
+    inputchannel = getchannel("share-your-shot")
     outputchannel = (
-        getchannelo("share-your-shot-bot") if DEBUG else getchanneli("hall-of-framed")
+        getchannel("share-your-shot-bot") if DEBUG else getchannel("hall-of-framed")
     )
-    thumbnailchannel = getchannelo("thumbnail-dump")
-    socialschannel = getchanneli("share-your-socials")
+    thumbnailchannel = getchannel("thumbnail-dump")
+    socialschannel = getchannel("share-your-socials")
 
     # reactiontrigger=(len(outputchannel.guild.members))/10
 
@@ -1078,7 +1046,7 @@ async def curationActive(d):
         days_iterator = days_iterator + 1
 
 
-@tasks.loop(hours=1)
+@tasks.loop(hours=24)
 async def startcurating(last_curation_date):
     if startcurating.current_loop == 0:
         await curationActive(last_curation_date)
