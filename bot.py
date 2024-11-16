@@ -743,7 +743,13 @@ def get_colour_name(requested_colour, colorPalette):
     return actual_name, closest_name
 
 
-# ----------These are divided in two functions to filter between channels (security messure)--------
+# ------------------
+
+def get_framed_server():
+    for s in bot.guilds:
+        # if g.name== 'BotTest':
+        if s.name == "FRAMED - Screenshot Community":
+            return s
 
 def getchannel(channelname):
     server_name = 'BotTest' if DEBUG else 'FRAMED - Screenshot Community'
