@@ -922,6 +922,7 @@ async def forceremovepost(ctx, id: int):
     try:
         dbEntry = shotsdb.search(Query().epochTime == int(id))[0]
         shot_filename = dbEntry['shotUrl'].rsplit('/', 1)[1]
+        thumbnail_filename = dbEntry['thumbnailUrl'].rsplit('/', 1)[1]
 
         shotsdb.remove(Query().epochTime == int(id))
         shotsdb.all()
@@ -929,9 +930,8 @@ async def forceremovepost(ctx, id: int):
         if not DEBUG:
             shot_file = b2_api.get_file_info_by_name(BACKBLAZE_BUCKET_NAME, f'{BACKBLAZE_HOF_FOLDER_NAME}/images/{shot_filename}')
             shot_file.delete()
-            
-            shot_filename_without_extension = os.path.splitext(shot_filename)[0]
-            thumbnail_file = b2_api.get_file_info_by_name(BACKBLAZE_BUCKET_NAME, f'{BACKBLAZE_HOF_FOLDER_NAME}/thumbnails/{shot_filename_without_extension}.jpg')
+
+            thumbnail_file = b2_api.get_file_info_by_name(BACKBLAZE_BUCKET_NAME, f'{BACKBLAZE_HOF_FOLDER_NAME}/thumbnails/{thumbnail_filename}')
             thumbnail_file.delete()
             dbgitupdate()
 
