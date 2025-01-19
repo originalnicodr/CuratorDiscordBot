@@ -11,6 +11,7 @@ import discord
 from discord.ext import tasks, commands
 
 from discord import app_commands
+from discord.utils import get
 
 from b2sdk.v2 import B2Api, InMemoryAccountInfo
 
@@ -167,8 +168,13 @@ websiterepourl = f"https://originalnicodrgitbot:{GIT_TOKEN}@github.com/originaln
 websiterepofolder = "websiterepo"
 
 #delete_websiterepo_folder()
-repo = Repo.clone_from(websiterepourl, websiterepofolder)
-assert repo.__class__ is Repo
+if DEBUG:
+    if not os.path.exists(websiterepofolder):
+        repo = Repo.clone_from(websiterepourl, websiterepofolder)
+        assert repo.__class__ is Repo
+else:
+    repo = Repo.clone_from(websiterepourl, websiterepofolder)
+    assert repo.__class__ is Repo
 
 # database for using the shots in a website
 shotsdb = TinyDB("websiterepo/shotsdb.json", indent=2)
@@ -745,7 +751,7 @@ def get_colour_name(requested_colour, colorPalette):
 
 # ------------------
 
-def get_framed_server():
+def get_framed_server() -> discord.guild:
     for s in bot.guilds:
         # if g.name== 'BotTest':
         if s.name == "FRAMED - Screenshot Community":
@@ -911,6 +917,88 @@ async def command_update_socials(ctx):
         await ctx.channel.send(
             content="Message not found on the #share-your-socials channel. Please post one so I can update the author's DB."
         )
+
+@bot.command(name="hofcandidates", help="Get hof candidates for a member.")
+@commands.check(is_user_allowed)
+async def hof_candidates(ctx, member_name: str):
+    member = get_member_by_name_or_nick(member_name)
+    if not member:
+        await ctx.send(f"Member {member_name} not found.")
+        return
+
+    candidates = []
+    async with ctx.typing():
+        # Limit it to cover around one month worth of shots at max
+        async for message in inputchannel.history(limit=5000, after=member.joined_at):
+            if message.author.id == member.id and not is_shot_already_posted(message) and len(list(await uniqueUsersReactions(message))) >= reactiontrigger:
+                candidates.append(f"- {message.id}: {message.jump_url}")
+
+    if candidates:
+        await maybe_split_and_send_message(ctx, [f"# Potential HOF candidates for {member.name}"] + candidates)
+    else:
+        await ctx.send(f"No HOF candidates found for {member.name}.")
+
+@bot.command(name="hofhitrate", help="Get how many of the shots shared on SYS have been hoffed in the last couple of weeks.")
+@commands.check(is_user_allowed)
+async def hof_hitrate(ctx):
+    current_week = datetime.datetime.now()
+    penultimate_week = datetime.datetime.now() - datetime.timedelta(days=7)
+    antepenultimate_week = datetime.datetime.now() - datetime.timedelta(days=14)
+
+    async with ctx.typing():
+        current_week_shots_counter, current_week_hof_counter = await hof_hitrate_week(current_week)
+        penultimate_week_shots_counter, penultimate_week_hof_counter = await hof_hitrate_week(penultimate_week)
+        antepenultimate_week_shots_counter, antepenultimate_week_hof_counter = await hof_hitrate_week(antepenultimate_week)
+
+    await ctx.channel.send(content=f'''# HOF Hitrate analysis
+## Week {(current_week - datetime.timedelta(days=7)).strftime("%m/%d")} - {current_week.strftime("%m/%d")}
+Shots shared: **{current_week_shots_counter}**
+Number of shots hoffed: **{current_week_hof_counter}**
+HOF hitrate: **{current_week_hof_counter/current_week_shots_counter}**
+## Week {(penultimate_week - datetime.timedelta(days=7)).strftime("%m/%d")} - {penultimate_week.strftime("%m/%d")}
+Shots shared: **{penultimate_week_shots_counter}**
+Number of shots hoffed: **{penultimate_week_hof_counter}**
+HOF hitrate: **{penultimate_week_hof_counter/penultimate_week_shots_counter}**
+## Week {(antepenultimate_week - datetime.timedelta(days=7)).strftime("%m/%d")} - {antepenultimate_week.strftime("%m/%d")}
+Shots shared: **{antepenultimate_week_shots_counter}**
+Number of shots hoffed: **{antepenultimate_week_hof_counter}**
+HOF hitrate: **{antepenultimate_week_hof_counter/antepenultimate_week_shots_counter}**
+    ''')
+
+async def hof_hitrate_week(end_of_week):
+    print(f"Analysis on week {end_of_week}")
+    last_week_shots = inputchannel.history(limit=None, before=end_of_week, after=end_of_week - datetime.timedelta(days=7))
+    shots_counter = 0
+    hof_counter = 0
+
+    async for shot in last_week_shots:
+        shots_counter += 1
+        if is_shot_already_posted(shot):
+            hof_counter += 1
+    
+    return shots_counter, hof_counter
+
+async def maybe_split_and_send_message(ctx, lines):
+    current_message = ""
+    current_length = 0
+    for line in lines:
+        if len(line) + current_length < 2000:
+            current_message += line + "\n"
+            current_length = len(current_message)
+        else:
+            await ctx.channel.send(content=current_message)
+            current_message = ""
+            current_length = 0
+    
+    if current_message != "":
+        await ctx.channel.send(content=current_message)
+
+def get_member_by_name_or_nick(member_name):
+    guild = get_framed_server()
+    member = get(guild.members, name=member_name)  # Search by username
+    if member is None:
+        member = get(guild.members, nick=member_name)  # Search by nickname
+    return member
 
 async def async_filter(async_pred, iterable):
     for item in iterable:
