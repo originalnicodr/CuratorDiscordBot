@@ -829,6 +829,9 @@ async def on_ready():
                     m.created_at
                 )  # update socials since the last time the bot sent a message
 
+        # Kick off scheduled events
+        scheduled_hof_hitrate.start()
+
 
 @tasks.loop(seconds=5)
 async def ping():
@@ -940,17 +943,20 @@ async def hof_candidates(ctx, member_name: str):
 
 @bot.command(name="hofhitrate", help="Get how many of the shots shared on SYS have been hoffed in the last couple of weeks.")
 @commands.check(is_user_allowed)
-async def hof_hitrate(ctx):
+async def hof_hitrate_command(ctx):
+    hof_hitrate(ctx.channel)
+
+async def hof_hitrate(channel):
     current_week = datetime.datetime.now()
     penultimate_week = datetime.datetime.now() - datetime.timedelta(days=7)
     antepenultimate_week = datetime.datetime.now() - datetime.timedelta(days=14)
 
-    async with ctx.typing():
+    async with channel.typing():
         current_week_shots_counter, current_week_hof_counter = await hof_hitrate_week(current_week)
         penultimate_week_shots_counter, penultimate_week_hof_counter = await hof_hitrate_week(penultimate_week)
         antepenultimate_week_shots_counter, antepenultimate_week_hof_counter = await hof_hitrate_week(antepenultimate_week)
 
-    await ctx.channel.send(content=f'''# HOF Hitrate analysis
+    await channel.send(content=f'''# HOF Hitrate analysis
 ## Week {(current_week - datetime.timedelta(days=7)).strftime("%m/%d")} - {current_week.strftime("%m/%d")}
 Shots shared: **{current_week_shots_counter}**
 Number of shots hoffed: **{current_week_hof_counter}**
@@ -992,6 +998,22 @@ async def maybe_split_and_send_message(ctx, lines):
     
     if current_message != "":
         await ctx.channel.send(content=current_message)
+
+# 7 days => 24 hour * 7 days = 168
+@tasks.loop(hours=168)
+async def scheduled_hof_hitrate():
+    admin_chat = getchannel("secret-admin-chat")
+    await hof_hitrate(admin_chat)
+
+@scheduled_hof_hitrate.before_loop
+async def before_scheduled_hof_hitrate():
+    # loop the whole 7 day (60 sec 60 min 24 hours 7 days)
+    for _ in range(60*60*24*7):  
+        if datetime.datetime.now(datetime.timezone.utc).strftime("%H:%M UTC %a") == "12:00 UTC Mon":
+            return
+
+        # wait some time before another loop. Don't make it more than 60 sec or it will skip
+        await asyncio.sleep(30)
 
 def get_member_by_name_or_nick(member_name):
     guild = get_framed_server()
