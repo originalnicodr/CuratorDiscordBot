@@ -1,46 +1,33 @@
 # bot.py
 
 # --------Modules---------------------------
-DEBUG = True
-
-import os
-import shutil
-from dotenv import load_dotenv
-
-import discord
-from discord.ext import tasks, commands
-
-from discord import app_commands
-from discord.utils import get
-
-from b2sdk.v2 import B2Api, InMemoryAccountInfo
-
-import datetime
-from datetime import timedelta
-import pytz
+DEBUG = False
 
 import asyncio
-
-import time
-
-import traceback
-import sys
-
+import datetime
 import functools
+import gc
 import operator
-
-from tinydb import TinyDB, Query
-
-from git import Repo
-
-from PIL import Image, ImageFilter
-import requests
-
-from colorthief import ColorThief
-import webcolors
-
-
+import os
+import pytz
 import re
+import requests
+import shutil
+import sys
+import traceback
+from datetime import timedelta
+
+import discord
+import webcolors
+from b2sdk.v2 import B2Api, InMemoryAccountInfo, UploadMode
+from discord import app_commands
+from discord.ext import tasks, commands
+from discord.utils import get
+from dotenv import load_dotenv
+from colorthief import ColorThief
+from git import Repo
+from PIL import Image, ImageFilter
+from tinydb import TinyDB, Query
 
 # -----------------------------------------------
 
@@ -73,6 +60,10 @@ if not DEBUG:
     application_key_id = BACKBLAZE_KEY_ID
     application_key = BACKBLAZE_KEY
     b2_api.authorize_account("production", application_key_id, application_key)
+    bucket = b2_api.get_bucket_by_name(BACKBLAZE_BUCKET_NAME)
+
+if DEBUG:
+    os.environ["B2_LOGGING_ENABLED"] = "True"
 
 # ------------Constants-----------------
 
@@ -313,17 +304,17 @@ def createthumbnail(shot, shot_filename):
     wt = int(ar * sizelimit)
 
     shot = shot.convert("RGB")  # to save it in jpg
-    shot = shot.filter(ImageFilter.SHARPEN)
 
     # filter algorithms
     # Image.NEAREST, Image.BILINEAR, Image.BICUBIC, Image.ANTIALIAS
     thumbnail_shot = shot.resize((wt, ht), Image.BICUBIC)
+    thumbnail_shot = thumbnail_shot.filter(ImageFilter.SHARPEN)
 
     shot_filename_without_extension = os.path.splitext(shot_filename)[0]
     thumbnail_file_name = f"thumbnail_{shot_filename_without_extension}.jpg"
     thumbnail_shot.save(thumbnail_file_name, quality=95)
 
-    return Image.open(thumbnail_file_name), thumbnail_file_name
+    return thumbnail_file_name
 
 
 # --------------------------------------------------------
@@ -530,20 +521,28 @@ async def postembed(message, shot_filename, gamename):
     await outputchannel.send(file=file, embed=embed)
 
 async def upload_to_backblaze(local__filename, upload_filename, folder):
-    b2_file_name = f'{BACKBLAZE_HOF_FOLDER_NAME}/{folder}/{upload_filename}'
+    global bucket
 
-    bucket = b2_api.get_bucket_by_name(BACKBLAZE_BUCKET_NAME)
+    b2_file_name = f'{BACKBLAZE_HOF_FOLDER_NAME}/{folder}/{upload_filename}'
     bucket.upload_local_file(
             local_file=local__filename,
             file_name=b2_file_name,
+            upload_mode=UploadMode.INCREMENTAL
         )
 
-def downloadImage(message):
+def downloadImageAndThumbnail(message):
     response = requests.get(message.attachments[0].url, stream=True)
     response.raw.decode_content = True
-    shot = Image.open(response.raw)
-    shot.save(message.attachments[0].filename, quality=95)
-    return shot, message.attachments[0].filename
+    shot_filename = message.attachments[0].filename
+    thumbnail_filename = ''
+
+    #print(response.content)
+
+    with Image.open(response.raw) as shot:
+        shot.save(shot_filename, quality=95)
+        thumbnail_filename = createthumbnail(shot, shot_filename)
+    
+    return shot_filename, thumbnail_filename
 
 # instead of using the date of the message it uses the actual time, that way if you sort by new in the future website, the new shots would always be on top, instead of getting mixed
 async def writedb(message, upload_filename, gamename, dominantColor, colorPalette, post_time):
@@ -607,12 +606,13 @@ async def maybePushToHof(message, post_time):
 
 async def pushToHof(message, post_time):
     gamename = await getgamename(message)
-    shot, shot_filename = downloadImage(message)
-    thumbnail, thumbnail_filename = createthumbnail(shot, shot_filename)
+    shot_filename, thumbnail_filename = downloadImageAndThumbnail(message)
     # We append the epoch time to avoid collisions between shots
     upload_filename = f'{int(post_time.timestamp())}_{shot_filename}'
     
     if not DEBUG:
+        print(f"shot_filename: {shot_filename}")
+        print(f"thumbnail_filename: {thumbnail_filename}")
         await upload_to_backblaze(shot_filename, upload_filename, 'images')
         await upload_to_backblaze(thumbnail_filename, upload_filename, 'thumbnails')
 
@@ -624,10 +624,10 @@ async def pushToHof(message, post_time):
     authorsdbupdate(message.author)
 
     #delete local files after upload
-    del shot
-    del thumbnail
     os.remove(shot_filename)
     os.remove(thumbnail_filename)
+
+    gc.collect()
 
     if not DEBUG:
         dbgitupdate()
@@ -821,16 +821,17 @@ async def on_ready():
             # client = discord.Client(intents=discord.Intents.default(), max_messages=None)
             # await execqueuecommandssince(m.created_at)
             if DEBUG:
-                startcurating.start(last_curation_date)
+                pass
+                #startcurating.start(last_curation_date)
             else:
                 # client.loop.create_task(curationActive(last_curation_date))
-                startcurating.start(last_curation_date)
+                #startcurating.start(last_curation_date)
                 await updatesocials(
                     m.created_at
                 )  # update socials since the last time the bot sent a message
 
         # Kick off scheduled events
-        scheduled_hof_hitrate.start()
+        #scheduled_hof_hitrate.start()
 
 
 @tasks.loop(seconds=5)
@@ -960,15 +961,15 @@ async def hof_hitrate(channel):
 ## Week {(current_week - datetime.timedelta(days=7)).strftime("%m/%d")} - {current_week.strftime("%m/%d")}
 Shots shared: **{current_week_shots_counter}**
 Number of shots hoffed: **{current_week_hof_counter}**
-HOF hitrate: **{current_week_hof_counter/current_week_shots_counter}**
+HOF hitrate: **{round(current_week_hof_counter/current_week_shots_counter, 2)}%**
 ## Week {(penultimate_week - datetime.timedelta(days=7)).strftime("%m/%d")} - {penultimate_week.strftime("%m/%d")}
 Shots shared: **{penultimate_week_shots_counter}**
 Number of shots hoffed: **{penultimate_week_hof_counter}**
-HOF hitrate: **{penultimate_week_hof_counter/penultimate_week_shots_counter}**
+HOF hitrate: **{round(penultimate_week_hof_counter/penultimate_week_shots_counter, 2)}%**
 ## Week {(antepenultimate_week - datetime.timedelta(days=7)).strftime("%m/%d")} - {antepenultimate_week.strftime("%m/%d")}
 Shots shared: **{antepenultimate_week_shots_counter}**
 Number of shots hoffed: **{antepenultimate_week_hof_counter}**
-HOF hitrate: **{antepenultimate_week_hof_counter/antepenultimate_week_shots_counter}**
+HOF hitrate: **{round(antepenultimate_week_hof_counter/antepenultimate_week_shots_counter, 2)}%**
     ''')
 
 async def hof_hitrate_week(end_of_week):
@@ -1008,9 +1009,13 @@ async def scheduled_hof_hitrate():
 @scheduled_hof_hitrate.before_loop
 async def before_scheduled_hof_hitrate():
     # loop the whole 7 day (60 sec 60 min 24 hours 7 days)
-    for _ in range(60*60*24*7):  
-        if datetime.datetime.now(datetime.timezone.utc).strftime("%H:%M UTC %a") == "12:00 UTC Mon":
+    for _ in range(60*60*24*7):
+        current_time = datetime.datetime.now(datetime.timezone.utc).strftime("%H:%M UTC %a")
+        if current_time == "12:00 UTC Mon":
             return
+
+        del current_time
+        gc.collect()
 
         # wait some time before another loop. Don't make it more than 60 sec or it will skip
         await asyncio.sleep(30)
@@ -1161,6 +1166,9 @@ async def curationActive(d):
 
         days_iterator = days_iterator + 1
 
+        del candidatesupdate
+        del listCandidates
+        gc.collect()
 
 @tasks.loop(hours=24)
 async def startcurating(last_curation_date):
