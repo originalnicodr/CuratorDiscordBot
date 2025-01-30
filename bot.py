@@ -1,7 +1,7 @@
 # bot.py
 
 # --------Modules---------------------------
-DEBUG = False
+DEBUG = True
 
 import asyncio
 import datetime
