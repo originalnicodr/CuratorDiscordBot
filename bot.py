@@ -15,11 +15,13 @@ import requests
 import shutil
 import sys
 import traceback
+import asyncio
+import asyncify
 from datetime import timedelta
 
 import discord
 import webcolors
-from b2sdk.v2 import B2Api, InMemoryAccountInfo, UploadMode
+from b2sdk.v2 import *
 from discord import app_commands
 from discord.ext import tasks, commands
 from discord.utils import get
@@ -56,7 +58,7 @@ tree_cls = app_commands.CommandTree(client)
 
 if not DEBUG:
     info = InMemoryAccountInfo()
-    b2_api = B2Api(info)
+    b2_api = B2Api(info, cache=AuthInfoCache(info))
     application_key_id = BACKBLAZE_KEY_ID
     application_key = BACKBLAZE_KEY
     b2_api.authorize_account("production", application_key_id, application_key)
@@ -350,7 +352,6 @@ async def uniqueUsersReactions(message):
     if message.reactions == []:
         return uniqueUsers
     # my attempt at a map
-    print(message.jump_url)
     for reaction in message.reactions:
         if reaction.users() == []:
             return uniqueUsers
@@ -388,8 +389,6 @@ async def historicalUniqueUsersCuration(message):
 
     if message.attachments:
         uniqueUsers = await uniqueUsersReactions(message)
-
-        # print(uniqueUsers)
 
         if uniqueUsers != []:
             listNumberReactions = uniqueUsers
@@ -520,23 +519,22 @@ async def postembed(message, shot_filename, gamename):
     file = discord.File(shot_filename)
     await outputchannel.send(file=file, embed=embed)
 
-async def upload_to_backblaze(local__filename, upload_filename, folder):
+def upload_to_backblaze(local__filename, upload_filename, folder):
     global bucket
 
     b2_file_name = f'{BACKBLAZE_HOF_FOLDER_NAME}/{folder}/{upload_filename}'
+    print(f"Uploading file '{local__filename}' to '{folder}...")
     bucket.upload_local_file(
             local_file=local__filename,
-            file_name=b2_file_name,
-            upload_mode=UploadMode.INCREMENTAL
+            file_name=b2_file_name
         )
+    print("uploading file done.")
 
 def downloadImageAndThumbnail(message):
     response = requests.get(message.attachments[0].url, stream=True)
     response.raw.decode_content = True
     shot_filename = message.attachments[0].filename
     thumbnail_filename = ''
-
-    #print(response.content)
 
     with Image.open(response.raw) as shot:
         shot.save(shot_filename, quality=95)
@@ -579,8 +577,6 @@ async def removeshotsfromauthor(ctx, authorid):
 # ----------------------------------------------------
 import functools
 import typing
-import asyncio
-
 
 def to_thread(func: typing.Callable) -> typing.Coroutine:
     @functools.wraps(func)
@@ -602,8 +598,10 @@ async def maybePushToHof(message, post_time):
     if await ignore_bcs_emoji(message):
         print("Shot ignored because of emoji")
         return
+    print(f"Pushing shot!: {message.jump_url}")
     await pushToHof(message, post_time)
 
+@asyncify.asyncify_func
 async def pushToHof(message, post_time):
     gamename = await getgamename(message)
     shot_filename, thumbnail_filename = downloadImageAndThumbnail(message)
@@ -611,10 +609,8 @@ async def pushToHof(message, post_time):
     upload_filename = f'{int(post_time.timestamp())}_{shot_filename}'
     
     if not DEBUG:
-        print(f"shot_filename: {shot_filename}")
-        print(f"thumbnail_filename: {thumbnail_filename}")
-        await upload_to_backblaze(shot_filename, upload_filename, 'images')
-        await upload_to_backblaze(thumbnail_filename, upload_filename, 'thumbnails')
+        upload_to_backblaze(shot_filename, upload_filename, 'images')
+        upload_to_backblaze(thumbnail_filename, upload_filename, 'thumbnails')
 
     dominantColor, colorPalette = getColor(shot_filename)
     await writedb(message, upload_filename, gamename, dominantColor, colorPalette, post_time)
@@ -628,6 +624,8 @@ async def pushToHof(message, post_time):
     os.remove(thumbnail_filename)
 
     gc.collect()
+
+    print(f"Finishing pushing shot!: {message.jump_url}")
 
     if not DEBUG:
         dbgitupdate()
@@ -1107,8 +1105,7 @@ async def execqueuecommandssince(date):
 async def forcepost(ctx, id: int):
     message = await inputchannel.fetch_message(id)
     if message.attachments:
-        await pushToHof(message, datetime.datetime.now(tz=pytz.UTC))  # so it uses the date of the screenshot
-        print(f"Nice shot bro")
+        await pushToHof(message, datetime.datetime.now(tz=pytz.UTC))
     else:
         #TODO: Support adding external links upload
         print(f"Cant post shot, its not uploaded to discord.")
@@ -1147,6 +1144,7 @@ async def curationActive(d):
         print("schedule curation")
 
         for m in listCandidates:
+            print(m.jump_url)
             if DEBUG:
                 import os, psutil
 
@@ -1160,7 +1158,6 @@ async def curationActive(d):
             )  # it would be faster if we could filter the listcandidates instead of doing this, right?
             if check:
                 await maybePushToHof(m, datetime.datetime.now(tz=pytz.UTC))
-                print(f"Nice shot bro")
 
         # Continue with the normal curation after the initial one is done.
 
@@ -1213,7 +1210,6 @@ async def curate_last_chance_old(daysBehind):
         if check:
             if is_shot_already_posted(m):
                 await maybePushToHof(m, datetime.datetime.now(tz=pytz.UTC))
-                print("Nice shot bro")
             else:
                 print("Already posted")
     print("finished")
