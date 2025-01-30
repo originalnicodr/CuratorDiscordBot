@@ -58,7 +58,7 @@ tree_cls = app_commands.CommandTree(client)
 
 if not DEBUG:
     info = InMemoryAccountInfo()
-    b2_api = B2Api(info, cache=AuthInfoCache(info))
+    b2_api = B2Api(info, cache=AuthInfoCache(info), max_upload_workers=10, max_copy_workers=10)
     application_key_id = BACKBLAZE_KEY_ID
     application_key = BACKBLAZE_KEY
     b2_api.authorize_account("production", application_key_id, application_key)
@@ -146,7 +146,7 @@ socialschannel = None
 
 def delete_websiterepo_folder():
     directory = os.getcwd()
-    file_path = directory + "\websiterepo"
+    file_path = directory + "\\websiterepo"
     if os.path.exists(file_path):
         shutil.rmtree(file_path)
         print("Deleted websiterepo folder succesfully.")
@@ -174,6 +174,7 @@ shotsdb = TinyDB("websiterepo/shotsdb.json", indent=2)
 authorsdb = TinyDB("websiterepo/authorsdb.json", indent=2)
 
 
+@asyncify.asyncify_func
 def dbgitupdate():
     global repo
     repo.git.add("shotsdb.json")
@@ -213,6 +214,7 @@ known_socials = [
     "youtube",
 ]
 
+@asyncify.asyncify_func
 def authorsdbupdate(author):
     authorid_str = str(author.id)
     print(f"author {author.name}")
@@ -519,17 +521,17 @@ async def postembed(message, shot_filename, gamename):
     file = discord.File(shot_filename)
     await outputchannel.send(file=file, embed=embed)
 
+@asyncify.asyncify_func
 def upload_to_backblaze(local__filename, upload_filename, folder):
     global bucket
 
     b2_file_name = f'{BACKBLAZE_HOF_FOLDER_NAME}/{folder}/{upload_filename}'
-    print(f"Uploading file '{local__filename}' to '{folder}...")
     bucket.upload_local_file(
             local_file=local__filename,
             file_name=b2_file_name
         )
-    print("uploading file done.")
 
+@asyncify.asyncify_func
 def downloadImageAndThumbnail(message):
     response = requests.get(message.attachments[0].url, stream=True)
     response.raw.decode_content = True
@@ -547,6 +549,8 @@ async def writedb(message, upload_filename, gamename, dominantColor, colorPalett
     colorName1, closestClrName1 = get_colour_name(dominantColor, colorPalette)
     elementid = len(shotsdb) + 1
     score = await uniqueUsersReactions(message)
+    # Force the coroutine to yield
+    await asyncio.sleep(0)
     score = len(list(score))
     shotsdb.insert(
         {
@@ -601,34 +605,39 @@ async def maybePushToHof(message, post_time):
     print(f"Pushing shot!: {message.jump_url}")
     await pushToHof(message, post_time)
 
-@asyncify.asyncify_func
 async def pushToHof(message, post_time):
     gamename = await getgamename(message)
-    shot_filename, thumbnail_filename = downloadImageAndThumbnail(message)
+    shot_filename, thumbnail_filename = await downloadImageAndThumbnail(message)
+    
     # We append the epoch time to avoid collisions between shots
     upload_filename = f'{int(post_time.timestamp())}_{shot_filename}'
     
     if not DEBUG:
-        upload_to_backblaze(shot_filename, upload_filename, 'images')
-        upload_to_backblaze(thumbnail_filename, upload_filename, 'thumbnails')
+        await upload_to_backblaze(shot_filename, upload_filename, 'images')
+        await upload_to_backblaze(thumbnail_filename, upload_filename, 'thumbnails')
 
-    dominantColor, colorPalette = getColor(shot_filename)
+    dominantColor, colorPalette = await getColor(shot_filename)
     await writedb(message, upload_filename, gamename, dominantColor, colorPalette, post_time)
+    # Force the coroutine to yield
+    await asyncio.sleep(0)
+    
     # If the server is not boosted and the shot is bigger than the max free size uploading the shot for
     # using in the embed might cause troubles. In that case, switch to thumbnail.
     await postembed(message, shot_filename, gamename)
-    authorsdbupdate(message.author)
+    await authorsdbupdate(message.author)
 
     #delete local files after upload
     os.remove(shot_filename)
     os.remove(thumbnail_filename)
+    # Force the coroutine to yield
+    await asyncio.sleep(0)
 
     gc.collect()
 
     print(f"Finishing pushing shot!: {message.jump_url}")
 
     if not DEBUG:
-        dbgitupdate()
+        await dbgitupdate()
 
     # ----------------For forcing post actions-------------------
 
@@ -710,6 +719,7 @@ def creationDateCheck(message):
         return datetime.datetime.now(tz=pytz.UTC) - timedelta(days=daystocheck) <= date
 
 
+@asyncify.asyncify_func
 def getColor(fileName):
     color_thief = ColorThief(f'{fileName}')
     """
@@ -818,15 +828,12 @@ async def on_ready():
             print(m.created_at)
             # client = discord.Client(intents=discord.Intents.default(), max_messages=None)
             # await execqueuecommandssince(m.created_at)
-            if DEBUG:
-                pass
-                #startcurating.start(last_curation_date)
-            else:
-                # client.loop.create_task(curationActive(last_curation_date))
-                #startcurating.start(last_curation_date)
-                await updatesocials(
-                    m.created_at
-                )  # update socials since the last time the bot sent a message
+
+            # client.loop.create_task(curationActive(last_curation_date))
+            startcurating.start(last_curation_date)
+            await updatesocials(
+                m.created_at
+            )  # update socials since the last time the bot sent a message
 
         # Kick off scheduled events
         #scheduled_hof_hitrate.start()
@@ -852,7 +859,7 @@ async def on_message(message):
     ):  # message.channel is discord.channel.TextChannel #dont know what this isnt working
         addsocials(message)
         if not DEBUG:
-            dbgitupdate()
+            await dbgitupdate()
     else:
         await bot.process_commands(message)
 
@@ -910,7 +917,7 @@ async def command_update_socials(ctx):
         addsocials(socialsMessage)
         print("added new social info")
         if not DEBUG:
-            dbgitupdate()
+            await dbgitupdate()
         await ctx.channel.send(
             content="Socials updated!"
         )
@@ -1046,7 +1053,7 @@ async def forceremovepost(ctx, id: int):
 
             thumbnail_file = b2_api.get_file_info_by_name(BACKBLAZE_BUCKET_NAME, f'{BACKBLAZE_HOF_FOLDER_NAME}/thumbnails/{thumbnail_filename}')
             thumbnail_file.delete()
-            dbgitupdate()
+            await dbgitupdate()
 
         await ctx.channel.send(
             content=f"Entry deleted \n<{siteLink}?imageId={str(dbEntry['epochTime'])}>"
@@ -1062,7 +1069,7 @@ async def forceremoveauthor(ctx, id: int):
         print("Author found, shots removed.")
         await ctx.channel.send(content="Author found, shots removed.")
         if not DEBUG:
-            dbgitupdate()
+            await dbgitupdate()
     else:
         print("Author not found.")
         await ctx.channel.send(content="Author not found.")
@@ -1072,7 +1079,7 @@ async def updategamename(ctx, id: int, newGameName: str):
         dbEntry = shotsdb.search(Query().epochTime == int(id))[0]
         shotsdb.update({'gameName': newGameName}, Query().epochTime == int(id))
         if not DEBUG:
-            dbgitupdate()
+            await dbgitupdate()
             await ctx.channel.send(
                 content="Game name updated! \n"
                 + siteLink
