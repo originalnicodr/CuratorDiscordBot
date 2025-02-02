@@ -311,8 +311,7 @@ def createthumbnail(shot, shot_filename):
 
     # filter algorithms
     # Image.NEAREST, Image.BILINEAR, Image.BICUBIC, Image.ANTIALIAS
-    thumbnail_shot = shot.resize((wt, ht), Image.BICUBIC)
-    thumbnail_shot = thumbnail_shot.filter(ImageFilter.SHARPEN)
+    thumbnail_shot = shot.resize((wt, ht), Image.LANCZOS)
 
     shot_filename_without_extension = os.path.splitext(shot_filename)[0]
     thumbnail_file_name = f"thumbnail_{shot_filename_without_extension}.jpg"
@@ -610,7 +609,7 @@ async def pushToHof(message, post_time):
     shot_filename, thumbnail_filename = await downloadImageAndThumbnail(message)
     
     # We append the epoch time to avoid collisions between shots
-    upload_filename = f'{int(post_time.timestamp())}_{shot_filename}'
+    upload_filename = f'{message.created_at.timestamp()}_{shot_filename}'
     
     if not DEBUG:
         await upload_to_backblaze(shot_filename, upload_filename, 'images')
@@ -621,9 +620,18 @@ async def pushToHof(message, post_time):
     # Force the coroutine to yield
     await asyncio.sleep(0)
     
-    # If the server is not boosted and the shot is bigger than the max free size uploading the shot for
-    # using in the embed might cause troubles. In that case, switch to thumbnail.
-    await postembed(message, shot_filename, gamename)
+    # Discord might disconnect when pushing a hof shot, so try
+    for _ in range(0,5):
+        try:
+            await postembed(message, shot_filename, gamename)
+        except Exception as e:
+            print(e)
+            print("Will retry posting on #hall-of-framed in 60s")
+            await asyncio.sleep(60)
+            continue
+
+        break
+    
     await authorsdbupdate(message.author)
 
     #delete local files after upload
@@ -836,7 +844,7 @@ async def on_ready():
             )  # update socials since the last time the bot sent a message
 
         # Kick off scheduled events
-        #scheduled_hof_hitrate.start()
+        scheduled_hof_hitrate.start()
 
 
 @tasks.loop(seconds=5)
