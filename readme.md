@@ -61,7 +61,7 @@ Here is an updated list of commands for your bot:
 - **!isshotonhof MESSAGE_ID**: Quick check if the shot is already on the HOF database.
 - **!updatesocials**: If for some reason the user hasn't gotten their socials updated (that includes their name and avatar) they can send this command to the bot and it will do so. This command can be executed by anyone.
 - **!hofcandidates AUTHOR_NICK**: When removing the rol that blocks a user from getting their shots pushed (as in, they were new) you can use this command to get a list of shots that would have gotten picked up if they weren't for the role blocking them, in case you want to manually push some of them. Keep in mind that this retrieves all messages in the sharing shot channel and checks the ones from this user, so if the user has joined the server a long time ago it might take a while to finish.
-**!hofhitrate**: Create a report indicating how many of the shots in the last three weeks have been gotten into the hof, to adjust the threshold based on a specific number you want to achieve. It also does it automatically every Monday.
+- **!hofhitrate**: Create a report indicating how many of the shots in the last three weeks have been gotten into the hof, to adjust the threshold based on a specific number you want to achieve. It also does it automatically every Monday.
 - **!help**: Show this help message.
 
 
