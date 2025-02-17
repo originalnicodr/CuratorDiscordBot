@@ -974,15 +974,15 @@ async def hof_hitrate(channel):
 ## Week {(current_week - datetime.timedelta(days=7)).strftime("%m/%d")} - {current_week.strftime("%m/%d")}
 Shots shared: **{current_week_shots_counter}**
 Number of shots hoffed: **{current_week_hof_counter}**
-HOF hitrate: **{round(current_week_hof_counter/current_week_shots_counter, 2)}%**
+HOF hitrate: **{round(current_week_hof_counter/current_week_shots_counter * 100, 2)}%**
 ## Week {(penultimate_week - datetime.timedelta(days=7)).strftime("%m/%d")} - {penultimate_week.strftime("%m/%d")}
 Shots shared: **{penultimate_week_shots_counter}**
 Number of shots hoffed: **{penultimate_week_hof_counter}**
-HOF hitrate: **{round(penultimate_week_hof_counter/penultimate_week_shots_counter, 2)}%**
+HOF hitrate: **{round(penultimate_week_hof_counter/penultimate_week_shots_counter * 100, 2)}%**
 ## Week {(antepenultimate_week - datetime.timedelta(days=7)).strftime("%m/%d")} - {antepenultimate_week.strftime("%m/%d")}
 Shots shared: **{antepenultimate_week_shots_counter}**
 Number of shots hoffed: **{antepenultimate_week_hof_counter}**
-HOF hitrate: **{round(antepenultimate_week_hof_counter/antepenultimate_week_shots_counter, 2)}%**
+HOF hitrate: **{round(antepenultimate_week_hof_counter/antepenultimate_week_shots_counter * 100, 2)}%**
     ''')
 
 async def hof_hitrate_week(end_of_week):
