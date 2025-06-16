@@ -743,11 +743,11 @@ def getColor(fileName):
 
 def closest_colour(requested_colour):
     min_colours = {}
-    for key, name in webcolors.css3_hex_to_names.items():
-        r_c, g_c, b_c = webcolors.hex_to_rgb(key)
-        rd = (r_c - requested_colour[0] - 10) ** 2
-        gd = (g_c - requested_colour[1] - 10) ** 2
-        bd = (b_c - requested_colour[2] - 10) ** 2
+    for name in webcolors.names("css3"):
+        r_c, g_c, b_c = webcolors.name_to_rgb(name)
+        rd = (r_c - requested_colour[0]) ** 2
+        gd = (g_c - requested_colour[1]) ** 2
+        bd = (b_c - requested_colour[2]) ** 2
         min_colours[(rd + gd + bd)] = name
     return min_colours[min(min_colours.keys())]
 
@@ -759,6 +759,8 @@ def get_colour_name(requested_colour, colorPalette):
     except ValueError:
         closest_name = closest_colour(requested_colour)
         while closest_name == "black" or closest_name == "darkslategrey":
+            if n >= len(colorPalette):
+                return None, None
             closest_name = closest_colour(colorPalette[n])
             n += 1
         actual_name = None
